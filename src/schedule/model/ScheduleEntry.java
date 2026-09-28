@@ -15,6 +15,18 @@ public class ScheduleEntry {
     public TimeSlot getTimeSlot() { return timeSlot; }
     public Classroom getClassroom() { return classroom; }
 
+    public void setLesson(Lesson lesson) {
+        this.lesson = lesson;
+    }
+
+    public void setTimeSlot(TimeSlot timeSlot) {
+        this.timeSlot = timeSlot;
+    }
+
+    public void setClassroom(Classroom classroom) {
+        this.classroom = classroom;
+    }
+
     @Override
     public String toString() {
         return lesson.getSubject().getName() + " | " + lesson.getTeacher().getShortName() +
