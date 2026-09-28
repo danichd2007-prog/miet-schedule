@@ -39,4 +39,29 @@ public class TimeSlot {
     public  String toString(){
         return day + "," + lessonNumber + "," + weekType;
     }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) {
+            return true;
+        }
+
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
+
+        TimeSlot timeSlot = (TimeSlot) o;
+
+        return lessonNumber == timeSlot.lessonNumber
+                && day == timeSlot.day
+                && weekType == timeSlot.weekType;
+    }
+
+    @Override
+    public int hashCode() {
+        int result = day.hashCode();
+        result = 31 * result + lessonNumber;
+        result = 31 * result + weekType.hashCode();
+        return result;
+    }
 }

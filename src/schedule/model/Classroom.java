@@ -29,4 +29,24 @@ public class Classroom {
     public String toString() {
         return "Аудитория " + number + " (" + type + ")";
     }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) {
+            return true;
+        }
+
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
+
+        Classroom classroom = (Classroom) o;
+
+        return number.equals(classroom.number);
+    }
+
+    @Override
+    public int hashCode() {
+        return number.hashCode();
+    }
 }
