@@ -26,7 +26,7 @@ public class Classroom {
     }
 
     @Override
-    public String toSting(){
+    public String toString() {
         return "Аудитория " + number + " (" + type + ")";
     }
 }
