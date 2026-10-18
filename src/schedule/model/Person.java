@@ -19,7 +19,7 @@ public abstract class Person {
         return lastName + " " + firstName.charAt(0) + "." + middleName.charAt(0) + ".";
     }
 
-    // Абстрактный метод — для демонстрации полиморфизма
+    // Абстрактный метод
     public abstract String getRole();
 
     // Геттеры

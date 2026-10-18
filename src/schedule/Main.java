@@ -23,7 +23,7 @@ public class Main {
 
     public static void main(String[] args) {
 
-        // ===== Преподаватели =====
+        // Преподаватели
 
         Teacher ivanov = new Teacher(
                 "Иван",
@@ -40,7 +40,7 @@ public class Main {
         );
 
 
-        // ===== Группы =====
+        // Группы
 
         StudentGroup group1 =
                 new StudentGroup("ПИН-21", 2);
@@ -49,7 +49,7 @@ public class Main {
                 new StudentGroup("ПИН-22", 2);
 
 
-        // ===== Предметы =====
+        // Предметы
 
         Subject java =
                 new Subject("Java");
@@ -61,7 +61,7 @@ public class Main {
                 new Subject("Алгоритмы");
 
 
-        // ===== Аудитории =====
+        // Аудитории
 
         Classroom computerRoom =
                 new Classroom(
@@ -82,7 +82,7 @@ public class Main {
                 );
 
 
-        // ===== Время =====
+        // Время
 
         TimeSlot mondaySecond =
                 new TimeSlot(
@@ -99,7 +99,7 @@ public class Main {
                 );
 
 
-        // ===== Занятия =====
+        // Занятия
 
         Lesson javaLesson = new Lesson(
                 java,
@@ -123,12 +123,12 @@ public class Main {
         );
 
 
-        // ===== Расписание =====
+        // Расписание
 
         Schedule schedule = new Schedule();
 
 
-        // ===== Ограничения =====
+        // Ограничения
 
         ScheduleConstraint[] constraints = {
                 new ClassroomTypeConstraint(),
@@ -138,7 +138,7 @@ public class Main {
         };
 
 
-        // ===== MVC =====
+        // MVC
 
         ScheduleController controller =
                 new ScheduleController(schedule, constraints);
@@ -279,7 +279,7 @@ public class Main {
         );
 
 
-        // ===== Показываем результат =====
+        // Показываем результат
 
         view.showSchedule(controller.getSchedule());
     }
