@@ -1,36 +1,83 @@
 package schedule.model;
 
+import java.util.Objects;
+
 public abstract class Person {
+    private Long id;
     private String firstName;
     private String lastName;
     private String middleName;
 
     public Person(String firstName, String lastName, String middleName) {
-        this.firstName = firstName;
-        this.lastName = lastName;
-        this.middleName = middleName;
+        setFirstName(firstName);
+        setLastName(lastName);
+        setMiddleName(middleName);
+    }
+
+    public Long getId() {
+        return id;
+    }
+
+    public void setId(Long id) {
+        if (id == null || id <= 0) {
+            throw new IllegalArgumentException("ID must be positive");
+        }
+
+        if (this.id != null && !this.id.equals(id)) {
+            throw new IllegalStateException("ID cannot be changed");
+        }
+
+        this.id = id;
     }
 
     public String getFullName() {
-        return lastName + " " + firstName + " " + middleName;
+        return lastName + " " + firstName +
+                (middleName.isEmpty() ? "" : " " + middleName);
     }
 
     public String getShortName() {
-        return lastName + " " + firstName.charAt(0) + "." + middleName.charAt(0) + ".";
+        String result = lastName + " " + firstName.charAt(0) + ".";
+
+        if (!middleName.isEmpty()) {
+            result += middleName.charAt(0) + ".";
+        }
+
+        return result;
     }
 
-    // Абстрактный метод
     public abstract String getRole();
 
-    // Геттеры
-    public String getFirstName() { return firstName; }
-    public String getLastName() { return lastName; }
-    public String getMiddleName() { return middleName; }
+    public String getFirstName() {
+        return firstName;
+    }
 
-    // Сеттеры
-    public void setFirstName(String firstName) { this.firstName = firstName; }
-    public void setLastName(String lastName) { this.lastName = lastName; }
-    public void setMiddleName(String middleName) { this.middleName = middleName; }
+    public String getLastName() {
+        return lastName;
+    }
+
+    public String getMiddleName() {
+        return middleName;
+    }
+
+    public void setFirstName(String firstName) {
+        this.firstName = requireText(firstName, "First name");
+    }
+
+    public void setLastName(String lastName) {
+        this.lastName = requireText(lastName, "Last name");
+    }
+
+    public void setMiddleName(String middleName) {
+        this.middleName = middleName == null ? "" : middleName.trim();
+    }
+
+    private static String requireText(String value, String field) {
+        if (value == null || value.isBlank()) {
+            throw new IllegalArgumentException(field + " cannot be empty");
+        }
+
+        return value.trim();
+    }
 
     @Override
     public String toString() {
@@ -41,14 +88,14 @@ public abstract class Person {
     public boolean equals(Object o) {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
+
         Person person = (Person) o;
-        return firstName.equals(person.firstName) &&
-                lastName.equals(person.lastName) &&
-                middleName.equals(person.middleName);
+
+        return id != null && id.equals(person.id);
     }
 
     @Override
     public int hashCode() {
-        return firstName.hashCode() * 31 * 31 + lastName.hashCode() * 31 + middleName.hashCode();
+        return getClass().hashCode();
     }
 }
