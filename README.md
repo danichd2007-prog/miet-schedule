@@ -1,2 +1,2 @@
-# miet-schedule
+# miet-schedule1
 Проект по составлению расписания МИЭТ

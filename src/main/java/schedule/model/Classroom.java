@@ -1,4 +1,4 @@
-package schedule.model;
+    package schedule.model;
 
 public class Classroom {
     private String number;
