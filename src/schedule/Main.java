@@ -71,7 +71,7 @@ public class Main {
 
         Classroom lectureRoom =
                 new Classroom(
-                        "3101",
+                        "1201",
                         ClassroomType.LECTURE
                 );
 
