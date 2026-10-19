@@ -7,8 +7,8 @@ public class Direction {
     private String code;
 
     public Direction(String name, String code) {
-        this.name = name;
-        this.code = code;
+        setName(name);
+        setCode(code);
     }
 
     public Long getId() {
@@ -16,6 +16,14 @@ public class Direction {
     }
 
     public void setId(Long id) {
+        if (id == null || id <= 0) {
+            throw new IllegalArgumentException("ID must be positive");
+        }
+
+        if (this.id != null && !this.id.equals(id)) {
+            throw new IllegalStateException("ID cannot be changed");
+        }
+
         this.id = id;
     }
 
@@ -24,7 +32,12 @@ public class Direction {
     }
 
     public void setName(String name) {
-        this.name = name;
+        if (name == null || name.isBlank()) {
+            throw new IllegalArgumentException(
+                    "Direction name cannot be empty");
+        }
+
+        this.name = name.trim();
     }
 
     public String getCode() {
@@ -32,6 +45,31 @@ public class Direction {
     }
 
     public void setCode(String code) {
-        this.code = code;
+        if (code == null || code.isBlank()) {
+            throw new IllegalArgumentException(
+                    "Direction code cannot be empty");
+        }
+
+        this.code = code.trim();
+    }
+
+    @Override
+    public String toString() {
+        return code + " — " + name;
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+
+        Direction that = (Direction) o;
+
+        return id != null && id.equals(that.id);
+    }
+
+    @Override
+    public int hashCode() {
+        return getClass().hashCode();
     }
 }

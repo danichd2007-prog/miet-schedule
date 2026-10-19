@@ -1,3 +1,4 @@
+/*
 package schedule.model;
 
 public class Student extends Person {
@@ -21,4 +22,4 @@ public class Student extends Person {
     public void setGroup(StudentGroup group) {
         this.group = group;
     }
-}
+}*/
