@@ -1,17 +1,47 @@
 package schedule.model;
 
-public class TimeSlot {
-    private WeekDay day;
-    private int lessonNumber;
-    private WeekType weekType;
+import java.time.LocalTime;
+import java.util.Objects;
 
-    public TimeSlot(WeekDay day, int lessonNumber, WeekType weekType) {
-        this.day = day;
+public class TimeSlot {
+    private final WeekDay day;
+    private final int lessonNumber;
+    private final WeekType weekType;
+    private final LocalTime startTime;
+    private final LocalTime endTime;
+
+    public TimeSlot(WeekDay day,
+                    int lessonNumber,
+                    WeekType weekType,
+                    LocalTime startTime,
+                    LocalTime endTime) {
+
+        this.day = Objects.requireNonNull(
+                day, "Day cannot be null");
+
+        this.weekType = Objects.requireNonNull(
+                weekType, "WeekType cannot be null");
+
+        this.startTime = Objects.requireNonNull(
+                startTime, "Start time cannot be null");
+
+        this.endTime = Objects.requireNonNull(
+                endTime, "End time cannot be null");
+
+        if (lessonNumber < 1) {
+            throw new IllegalArgumentException(
+                    "Lesson number must be positive");
+        }
+
+        if (!endTime.isAfter(startTime)) {
+            throw new IllegalArgumentException(
+                    "End time must be after start time");
+        }
+
         this.lessonNumber = lessonNumber;
-        this.weekType = weekType;
     }
 
-    public WeekDay getDay(){
+    public WeekDay getDay() {
         return day;
     }
 
@@ -23,45 +53,38 @@ public class TimeSlot {
         return weekType;
     }
 
-    public void setDay(WeekDay day) {
-        this.day = day;
+    public LocalTime getStartTime() {
+        return startTime;
     }
 
-    public void setLessonNumber(int lessonNumber) {
-        this.lessonNumber = lessonNumber;
-    }
-
-    public void setWeekType(WeekType weekType) {
-        this.weekType = weekType;
-    }
-
-    @Override
-    public  String toString(){
-        return day + "," + lessonNumber + "," + weekType;
+    public LocalTime getEndTime() {
+        return endTime;
     }
 
     @Override
     public boolean equals(Object o) {
-        if (this == o) {
-            return true;
-        }
-
-        if (o == null || getClass() != o.getClass()) {
-            return false;
-        }
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
 
         TimeSlot timeSlot = (TimeSlot) o;
 
         return lessonNumber == timeSlot.lessonNumber
                 && day == timeSlot.day
-                && weekType == timeSlot.weekType;
+                && weekType == timeSlot.weekType
+                && startTime.equals(timeSlot.startTime)
+                && endTime.equals(timeSlot.endTime);
     }
 
     @Override
     public int hashCode() {
-        int result = day.hashCode();
-        result = 31 * result + lessonNumber;
-        result = 31 * result + weekType.hashCode();
-        return result;
+        return Objects.hash(
+                day, lessonNumber, weekType, startTime, endTime);
+    }
+
+    @Override
+    public String toString() {
+        return day + ", пара " + lessonNumber +
+                ", " + weekType +
+                ", " + startTime + "-" + endTime;
     }
 }

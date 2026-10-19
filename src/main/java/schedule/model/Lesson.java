@@ -1,55 +1,102 @@
 package schedule.model;
 
-public class Lesson {
-    private Subject subject;
-    private Teacher teacher;
-    private StudentGroup group;
-    private ClassroomType requiredClassroomType;
+import java.util.Objects;
 
-    public Lesson(Subject subject, Teacher teacher, StudentGroup group,
-                  ClassroomType requiredClassroomType) {
-        this.subject = subject;
-        this.teacher = teacher;
-        this.group = group;
-        this.requiredClassroomType = requiredClassroomType;
+public class Lesson {
+    private Long id;
+    private final TeachingRequirement requirement;
+    private final int duration;
+
+    public Lesson(TeachingRequirement requirement, int duration) {
+        this.requirement = Objects.requireNonNull(
+                requirement, "Requirement cannot be null");
+
+        if (duration <= 0) {
+            throw new IllegalArgumentException(
+                    "Duration must be positive");
+        }
+
+        this.duration = duration;
+    }
+
+    public Long getId() {
+        return id;
+    }
+
+    public void setId(Long id) {
+        if (id == null || id <= 0) {
+            throw new IllegalArgumentException(
+                    "ID must be positive");
+        }
+
+        if (this.id != null && !this.id.equals(id)) {
+            throw new IllegalStateException(
+                    "ID cannot be changed");
+        }
+
+        this.id = id;
+    }
+
+    public TeachingRequirement getRequirement() {
+        return requirement;
+    }
+
+    public int getDuration() {
+        return duration;
     }
 
     public Subject getSubject() {
-        return subject;
+        return requirement.getTeacherSubject().getSubject();
     }
 
     public Teacher getTeacher() {
-        return teacher;
+        return requirement.getTeacherSubject().getTeacher();
     }
 
     public StudentGroup getGroup() {
-        return group;
+        SubjectToGroup link = requirement.getSubjectToGroup();
+        return link == null ? null : link.getGroup();
+    }
+
+    public Stream getStream() {
+        return requirement.getStream();
     }
 
     public ClassroomType getRequiredClassroomType() {
-        return requiredClassroomType;
+        return requirement.getRequiredClassroomType();
     }
 
-    public void setSubject(Subject subject) {
-        this.subject = subject;
+    public LessonType getLessonType() {
+        return requirement.getLessonType();
     }
 
-    public void setTeacher(Teacher teacher) {
-        this.teacher = teacher;
+    public WeekType getWeekType() {
+        return requirement.getWeekType();
     }
 
-    public void setGroup(StudentGroup group) {
-        this.group = group;
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+
+        Lesson lesson = (Lesson) o;
+
+        return id != null && id.equals(lesson.id);
     }
 
-    public void setRequiredClassroomType(ClassroomType requiredClassroomType) {
-        this.requiredClassroomType = requiredClassroomType;
+    @Override
+    public int hashCode() {
+        return getClass().hashCode();
     }
 
     @Override
     public String toString() {
-        return subject + " | "
-                + teacher.getShortName() + " | "
-                + group.getName();
+        String target = getStream() != null
+                ? "поток " + getStream().getName()
+                : "группа " + getGroup().getName();
+
+        return getSubject().getName() + " | " +
+                getTeacher().getShortName() + " | " +
+                target + " | " + getLessonType();
     }
 }

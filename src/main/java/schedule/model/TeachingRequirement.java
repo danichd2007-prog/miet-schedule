@@ -1,4 +1,3 @@
-
 package schedule.model;
 
 import java.util.Objects;
@@ -22,19 +21,21 @@ public class TeachingRequirement {
             WeekType weekType,
             ClassroomType requiredClassroomType) {
 
-        this.teacherSubject =
-                Objects.requireNonNull(teacherSubject, "teacherSubject");
-        this.lessonType =
-                Objects.requireNonNull(lessonType, "lessonType");
-        this.weekType =
-                Objects.requireNonNull(weekType, "weekType");
-        this.requiredClassroomType =
-                Objects.requireNonNull(requiredClassroomType,
-                        "requiredClassroomType");
+        this.teacherSubject = Objects.requireNonNull(
+                teacherSubject, "TeacherSubject cannot be null");
+
+        this.lessonType = Objects.requireNonNull(
+                lessonType, "LessonType cannot be null");
+
+        this.weekType = Objects.requireNonNull(
+                weekType, "WeekType cannot be null");
+
+        this.requiredClassroomType = Objects.requireNonNull(
+                requiredClassroomType, "ClassroomType cannot be null");
 
         if (lessonCount <= 0) {
             throw new IllegalArgumentException(
-                    "lessonCount must be positive");
+                    "Lesson count must be positive");
         }
 
         if ((stream == null) == (subjectToGroup == null)) {
@@ -44,21 +45,21 @@ public class TeachingRequirement {
 
         if ((lessonType == LessonType.LECTURE) != (stream != null)) {
             throw new IllegalArgumentException(
-                    "Lectures need stream; other lessons need subjectToGroup");
+                    "Lectures require stream; other lessons require subjectToGroup");
         }
 
         if (!teacherSubject.canTeach(lessonType)) {
             throw new IllegalArgumentException(
-                    "Teacher is not allowed to teach this lesson type");
+                    "Teacher cannot teach this lesson type");
         }
 
         Subject targetSubject = stream != null
                 ? stream.getSubject()
                 : subjectToGroup.getSubject();
 
-        if (teacherSubject.getSubject() != targetSubject) {
+        if (!teacherSubject.getSubject().equals(targetSubject)) {
             throw new IllegalArgumentException(
-                    "Subjects must match (use canonical Subject instances)");
+                    "TeacherSubject and target must reference the same subject");
         }
 
         this.subjectToGroup = subjectToGroup;
@@ -67,28 +68,40 @@ public class TeachingRequirement {
     }
 
     public static TeachingRequirement forLecture(
-            TeacherSubject ts,
+            TeacherSubject teacherSubject,
             Stream stream,
             int count,
             WeekType weekType,
             ClassroomType roomType) {
 
         return new TeachingRequirement(
-                ts, null, stream, LessonType.LECTURE,
-                count, weekType, roomType);
+                teacherSubject,
+                null,
+                stream,
+                LessonType.LECTURE,
+                count,
+                weekType,
+                roomType
+        );
     }
 
     public static TeachingRequirement forGroup(
-            TeacherSubject ts,
-            SubjectToGroup stg,
-            LessonType type,
+            TeacherSubject teacherSubject,
+            SubjectToGroup subjectToGroup,
+            LessonType lessonType,
             int count,
             WeekType weekType,
             ClassroomType roomType) {
 
         return new TeachingRequirement(
-                ts, stg, null, type,
-                count, weekType, roomType);
+                teacherSubject,
+                subjectToGroup,
+                null,
+                lessonType,
+                count,
+                weekType,
+                roomType
+        );
     }
 
     public Long getId() {
@@ -96,6 +109,16 @@ public class TeachingRequirement {
     }
 
     public void setId(Long id) {
+        if (id == null || id <= 0) {
+            throw new IllegalArgumentException(
+                    "ID must be positive");
+        }
+
+        if (this.id != null && !this.id.equals(id)) {
+            throw new IllegalStateException(
+                    "ID cannot be changed");
+        }
+
         this.id = id;
     }
 
@@ -125,5 +148,33 @@ public class TeachingRequirement {
 
     public ClassroomType getRequiredClassroomType() {
         return requiredClassroomType;
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+
+        TeachingRequirement that = (TeachingRequirement) o;
+
+        return id != null && id.equals(that.id);
+    }
+
+    @Override
+    public int hashCode() {
+        return getClass().hashCode();
+    }
+
+    @Override
+    public String toString() {
+        String target = stream != null
+                ? "поток " + stream.getName()
+                : "группа " + subjectToGroup.getGroup().getName();
+
+        return teacherSubject.getSubject().getName() +
+                " — " + lessonType +
+                ", " + target +
+                ", занятий: " + lessonCount +
+                ", неделя: " + weekType;
     }
 }
