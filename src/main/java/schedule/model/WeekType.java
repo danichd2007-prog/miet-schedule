@@ -1,10 +1,12 @@
 package schedule.model;
 
 public enum WeekType {
-    F_NUMERATOR("Первый Числитель"),
-    F_DENOMINATOR("Первый Знаменатель"),
-    S_NUMERATOR("Второй Числитель"),
-    S_DENOMINATOR("Второй Знаменатель"),
+    F_NUMERATOR("Первый числитель"),
+    F_DENOMINATOR("Первый знаменатель"),
+    S_NUMERATOR("Второй числитель"),
+    S_DENOMINATOR("Второй знаменатель"),
+    NUMERATOR("Числитель"),
+    DENOMINATOR("Знаменатель"),
     EVERY_WEEK("Каждую неделю");
 
     private final String russianName;

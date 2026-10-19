@@ -2,6 +2,7 @@ package schedule.constraint;
 
 import schedule.model.Schedule;
 import schedule.model.ScheduleEntry;
+import schedule.util.TimeSlotUtils;
 
 public class ClassroomConflictConstraint implements ScheduleConstraint {
 
@@ -11,10 +12,13 @@ public class ClassroomConflictConstraint implements ScheduleConstraint {
         for (ScheduleEntry existingEntry : schedule.getEntries()) {
 
             boolean sameClassroom =
-                    existingEntry.getClassroom().equals(entry.getClassroom());
+                    existingEntry.getClassroom()
+                            .equals(entry.getClassroom());
 
-            boolean sameTime =
-                    existingEntry.getTimeSlot().equals(entry.getTimeSlot());
+            boolean sameTime = TimeSlotUtils.overlaps(
+                    existingEntry.getTimeSlot(),
+                    entry.getTimeSlot()
+            );
 
             if (sameClassroom && sameTime) {
                 return false;

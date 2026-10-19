@@ -2,6 +2,7 @@
 package schedule.model;
 
 import java.util.Objects;
+import schedule.util.TimeSlotUtils;
 
 public class TeacherAvailability {
     private Long id;
@@ -35,6 +36,7 @@ public class TeacherAvailability {
         this.toLesson = toLesson;
     }
 
+
     public boolean isAvailable(WeekDay day,
                                int lessonNumber,
                                WeekType weekType) {
@@ -49,12 +51,14 @@ public class TeacherAvailability {
                 lessonNumber >= fromLesson &&
                         lessonNumber <= toLesson;
 
-        boolean matchingWeek =
-                this.weekType == WeekType.EVERY_WEEK ||
-                        this.weekType == weekType;
+        boolean matchingWeek = TimeSlotUtils.weeksCover(
+                this.weekType,
+                weekType
+        );
 
         return sameDay && lessonInRange && matchingWeek;
     }
+
 
     public Long getId() {
         return id;
