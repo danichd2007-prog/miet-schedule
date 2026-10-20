@@ -86,6 +86,7 @@ public class StudentGroup {
 
     @Override
     public int hashCode() {
-        return getClass().hashCode();
+        return id != null ? id.hashCode() : getClass().hashCode();
     }
+
 }
