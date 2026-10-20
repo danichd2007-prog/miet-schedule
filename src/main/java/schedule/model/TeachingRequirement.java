@@ -3,23 +3,25 @@ package schedule.model;
 import java.util.Objects;
 
 public class TeachingRequirement {
+
     private Long id;
+
     private final TeacherSubject teacherSubject;
     private final SubjectToGroup subjectToGroup;
     private final Stream stream;
     private final LessonType lessonType;
-    private final int lessonCount;
-    private final WeekType weekType;
+    private final int totalPairs;
     private final ClassroomType requiredClassroomType;
+    private final boolean isBlock;
 
     private TeachingRequirement(
             TeacherSubject teacherSubject,
             SubjectToGroup subjectToGroup,
             Stream stream,
             LessonType lessonType,
-            int lessonCount,
-            WeekType weekType,
-            ClassroomType requiredClassroomType) {
+            int totalPairs,
+            ClassroomType requiredClassroomType,
+            boolean isBlock) {
 
         this.teacherSubject = Objects.requireNonNull(
                 teacherSubject, "TeacherSubject cannot be null");
@@ -27,15 +29,18 @@ public class TeachingRequirement {
         this.lessonType = Objects.requireNonNull(
                 lessonType, "LessonType cannot be null");
 
-        this.weekType = Objects.requireNonNull(
-                weekType, "WeekType cannot be null");
-
         this.requiredClassroomType = Objects.requireNonNull(
-                requiredClassroomType, "ClassroomType cannot be null");
+                requiredClassroomType,
+                "ClassroomType cannot be null");
 
-        if (lessonCount <= 0) {
+        if (totalPairs <= 0) {
             throw new IllegalArgumentException(
-                    "Lesson count must be positive");
+                    "Total pairs must be positive");
+        }
+
+        if (isBlock && totalPairs % 2 != 0) {
+            throw new IllegalArgumentException(
+                    "Block lessons require an even number of pairs");
         }
 
         if ((stream == null) == (subjectToGroup == null)) {
@@ -64,24 +69,25 @@ public class TeachingRequirement {
 
         this.subjectToGroup = subjectToGroup;
         this.stream = stream;
-        this.lessonCount = lessonCount;
+        this.totalPairs = totalPairs;
+        this.isBlock = isBlock;
     }
 
     public static TeachingRequirement forLecture(
             TeacherSubject teacherSubject,
             Stream stream,
-            int count,
-            WeekType weekType,
-            ClassroomType roomType) {
+            int totalPairs,
+            ClassroomType roomType,
+            boolean isBlock) {
 
         return new TeachingRequirement(
                 teacherSubject,
                 null,
                 stream,
                 LessonType.LECTURE,
-                count,
-                weekType,
-                roomType
+                totalPairs,
+                roomType,
+                isBlock
         );
     }
 
@@ -89,18 +95,18 @@ public class TeachingRequirement {
             TeacherSubject teacherSubject,
             SubjectToGroup subjectToGroup,
             LessonType lessonType,
-            int count,
-            WeekType weekType,
-            ClassroomType roomType) {
+            int totalPairs,
+            ClassroomType roomType,
+            boolean isBlock) {
 
         return new TeachingRequirement(
                 teacherSubject,
                 subjectToGroup,
                 null,
                 lessonType,
-                count,
-                weekType,
-                roomType
+                totalPairs,
+                roomType,
+                isBlock
         );
     }
 
@@ -138,16 +144,16 @@ public class TeachingRequirement {
         return lessonType;
     }
 
-    public int getLessonCount() {
-        return lessonCount;
-    }
-
-    public WeekType getWeekType() {
-        return weekType;
+    public int getTotalPairs() {
+        return totalPairs;
     }
 
     public ClassroomType getRequiredClassroomType() {
         return requiredClassroomType;
+    }
+
+    public boolean isBlock() {
+        return isBlock;
     }
 
     @Override
@@ -171,10 +177,10 @@ public class TeachingRequirement {
                 ? "поток " + stream.getName()
                 : "группа " + subjectToGroup.getGroup().getName();
 
-        return teacherSubject.getSubject().getName() +
-                " — " + lessonType +
-                ", " + target +
-                ", занятий: " + lessonCount +
-                ", неделя: " + weekType;
+        return teacherSubject.getSubject().getName()
+                + " — " + lessonType
+                + ", " + target
+                + ", всего пар: " + totalPairs
+                + ", двухпарный блок: " + isBlock;
     }
 }

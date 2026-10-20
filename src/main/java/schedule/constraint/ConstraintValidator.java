@@ -1,11 +1,10 @@
 package schedule.constraint;
 
+import schedule.calendar.AcademicCalendar;
 import schedule.model.Schedule;
 import schedule.model.ScheduleEntry;
 import schedule.model.TeacherAvailability;
 
-import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
 
@@ -14,21 +13,30 @@ public class ConstraintValidator {
     private final List<ScheduleConstraint> constraints;
 
     public ConstraintValidator(
-            List<TeacherAvailability> availabilities) {
+            List<TeacherAvailability> availabilities,
+            AcademicCalendar calendar) {
 
-        this.constraints = new ArrayList<>();
+        Objects.requireNonNull(availabilities);
+        Objects.requireNonNull(calendar);
 
-        constraints.add(new TeacherConflictConstraint());
-        constraints.add(new ClassroomConflictConstraint());
-        constraints.add(new StudentGroupConflictConstraint());
-        constraints.add(new ClassroomTypeConstraint());
-        constraints.add(new LessonWeekConstraint());
-        constraints.add(new TeacherAvailabilityConstraint(availabilities));
+        this.constraints = List.of(
+                new TeacherConflictConstraint(),
+                new ClassroomConflictConstraint(),
+                new StudentGroupConflictConstraint(),
+                new ClassroomTypeConstraint(),
+                new LessonDurationConstraint(),
+                new TeacherAvailabilityConstraint(
+                        availabilities,
+                        calendar)
+        );
     }
 
-    public boolean canAdd(ScheduleEntry entry, Schedule schedule) {
-        Objects.requireNonNull(entry, "Entry cannot be null");
-        Objects.requireNonNull(schedule, "Schedule cannot be null");
+    public boolean canAdd(
+            ScheduleEntry entry,
+            Schedule schedule) {
+
+        Objects.requireNonNull(entry);
+        Objects.requireNonNull(schedule);
 
         for (ScheduleConstraint constraint : constraints) {
             if (!constraint.isSatisfied(entry, schedule)) {
@@ -40,6 +48,6 @@ public class ConstraintValidator {
     }
 
     public List<ScheduleConstraint> getConstraints() {
-        return Collections.unmodifiableList(constraints);
+        return constraints;
     }
 }

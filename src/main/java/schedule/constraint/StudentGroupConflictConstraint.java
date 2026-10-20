@@ -1,4 +1,3 @@
-
 package schedule.constraint;
 
 import schedule.model.Lesson;
@@ -7,29 +6,26 @@ import schedule.model.ScheduleEntry;
 import schedule.model.StudentGroup;
 import schedule.util.TimeSlotUtils;
 
-import java.util.Collections;
 import java.util.List;
 
 public class StudentGroupConflictConstraint implements ScheduleConstraint {
 
     @Override
-    public boolean isSatisfied(ScheduleEntry entry, Schedule schedule) {
+    public boolean isSatisfied(
+            ScheduleEntry entry,
+            Schedule schedule) {
 
-        List<StudentGroup> newGroups = getLessonGroups(
-                entry.getLesson()
-        );
+        List<StudentGroup> newGroups =
+                getGroups(entry.getLesson());
 
-        for (ScheduleEntry existingEntry : schedule.getEntries()) {
+        for (ScheduleEntry existing : schedule.getEntries()) {
 
-            if (!TimeSlotUtils.overlaps(
-                    existingEntry.getTimeSlot(),
-                    entry.getTimeSlot())) {
+            if (!TimeSlotUtils.overlaps(existing, entry)) {
                 continue;
             }
 
-            List<StudentGroup> existingGroups = getLessonGroups(
-                    existingEntry.getLesson()
-            );
+            List<StudentGroup> existingGroups =
+                    getGroups(existing.getLesson());
 
             for (StudentGroup group : newGroups) {
                 if (existingGroups.contains(group)) {
@@ -41,12 +37,11 @@ public class StudentGroupConflictConstraint implements ScheduleConstraint {
         return true;
     }
 
-    private List<StudentGroup> getLessonGroups(Lesson lesson) {
-
+    private List<StudentGroup> getGroups(Lesson lesson) {
         if (lesson.getStream() != null) {
             return lesson.getStream().getGroups();
         }
 
-        return Collections.singletonList(lesson.getGroup());
+        return List.of(lesson.getGroup());
     }
 }

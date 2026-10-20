@@ -7,20 +7,14 @@ import schedule.util.TimeSlotUtils;
 public class ClassroomConflictConstraint implements ScheduleConstraint {
 
     @Override
-    public boolean isSatisfied(ScheduleEntry entry, Schedule schedule) {
+    public boolean isSatisfied(
+            ScheduleEntry entry,
+            Schedule schedule) {
 
-        for (ScheduleEntry existingEntry : schedule.getEntries()) {
+        for (ScheduleEntry existing : schedule.getEntries()) {
 
-            boolean sameClassroom =
-                    existingEntry.getClassroom()
-                            .equals(entry.getClassroom());
-
-            boolean sameTime = TimeSlotUtils.overlaps(
-                    existingEntry.getTimeSlot(),
-                    entry.getTimeSlot()
-            );
-
-            if (sameClassroom && sameTime) {
+            if (existing.getClassroom().equals(entry.getClassroom())
+                    && TimeSlotUtils.overlaps(existing, entry)) {
                 return false;
             }
         }
