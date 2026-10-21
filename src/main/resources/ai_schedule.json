@@ -19,5 +19,33 @@
     "type": "LECTURE",
     "requiredClassroomType": "LECTURE",
     "isBlock": false
+  },
+  {
+    "subject": "Базы данных (SQL)",
+    "teacher": "Трофимов А.В.",
+    "type": "LABORATORY",
+    "requiredClassroomType": "COMPUTER",
+    "isBlock": true
+  },
+  {
+    "subject": "Архитектура ЭВМ и систем",
+    "teacher": "Поляков И.А.",
+    "type": "SEMINAR",
+    "requiredClassroomType": "REGULAR",
+    "isBlock": false
+  },
+  {
+    "subject": "Физика",
+    "teacher": "Гужов В.В.",
+    "type": "LECTURE",
+    "requiredClassroomType": "LECTURE",
+    "isBlock": false
+  },
+  {
+    "subject": "Общая электротехника",
+    "teacher": "Камолов М.М.",
+    "type": "LABORATORY",
+    "requiredClassroomType": "LABORATORY",
+    "isBlock": true
   }
 ]
