@@ -22,12 +22,14 @@ public class ConstraintValidator {
         this.constraints = List.of(
                 new TeacherConflictConstraint(),
                 new ClassroomConflictConstraint(),
-                // new StudentGroupConflictConstraint(),
-                new ClassroomTypeConstraint()
-                // new LessonDurationConstraint()
-                // new TeacherAvailabilityConstraint(availabilities, calendar)
+                new StudentGroupConflictConstraint(),
+                new SameSubjectDayConstraint(),
+                new ClassroomTypeConstraint(),
+                new LessonDurationConstraint(),
+                new TeacherAvailabilityConstraint(
+                        availabilities,
+                        calendar)
         );
-
     }
 
     public boolean canAdd(

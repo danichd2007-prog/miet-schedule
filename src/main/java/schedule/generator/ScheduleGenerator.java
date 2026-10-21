@@ -1,25 +1,68 @@
+
 package schedule.generator;
 
 import schedule.calendar.AcademicCalendar;
 import schedule.constraint.ConstraintValidator;
 import schedule.model.*;
+import schedule.util.BellSchedule;
+import schedule.util.TimeSlotUtils;
 
 import java.util.*;
 
 public class ScheduleGenerator {
 
-    private static final int MAX_SEARCH_STEPS = 200_000;
+    private static final int MAX_SEARCH_STEPS = 100_000;
+    private static final int MAX_OPTIMIZATION_PASSES = 3;
+    private static final int MAX_QUALITY_CHECKS = 5_000;
 
     private final ConstraintValidator validator;
-    private final LessonPlanner lessonPlanner;
-    private final TimeSlotGenerator slotGenerator;
+    private final LessonPlanner lessonPlanner = new LessonPlanner();
 
     private int searchSteps;
+    private boolean searchLimitReached;
+
+    private double qualityBeforeOptimization;
+    private double qualityAfterOptimization;
+    private int optimizationQualityChecks;
+    private int acceptedImprovements;
+    private int optimizationPasses;
 
     public ScheduleGenerator(ConstraintValidator validator) {
         this.validator = Objects.requireNonNull(validator);
-        this.lessonPlanner = new LessonPlanner();
-        this.slotGenerator = new TimeSlotGenerator();
+    }
+
+    public double getQualityBeforeOptimization() {
+        return qualityBeforeOptimization;
+    }
+
+    public double getQualityAfterOptimization() {
+        return qualityAfterOptimization;
+    }
+
+    public int getOptimizationQualityChecks() {
+        return optimizationQualityChecks;
+    }
+
+    public int getAcceptedImprovements() {
+        return acceptedImprovements;
+    }
+
+    public int getOptimizationPasses() {
+        return optimizationPasses;
+    }
+
+    public boolean wasSearchLimitReached() {
+        return searchLimitReached;
+    }
+
+    private record Series(
+            List<Lesson> lessons,
+            List<WeekType> patterns) {
+    }
+
+    private record Choice(
+            List<ScheduleEntry> entries,
+            double score) {
     }
 
     public Optional<Schedule> generate(
@@ -31,259 +74,602 @@ public class ScheduleGenerator {
         Objects.requireNonNull(classrooms);
         Objects.requireNonNull(calendar);
 
-        List<Lesson> lessons =
-                new ArrayList<>(lessonPlanner.createLessons(requirements));
-
         List<Classroom> rooms = List.copyOf(classrooms);
 
-        List<TimeSlot> slots = slotGenerator.generateSlots(
-                calendar,
-                Arrays.asList(WeekDay.values()),
-                1,
-                8
+        List<Series> series = buildSeries(
+                requirements, calendar
         );
 
-        validateLessons(lessons);
-
-        lessons.sort(Comparator
-                .comparing(Lesson::isDoubleBlock).reversed()
-                .thenComparing(
-                        lesson -> lesson.getStream() == null ? 0 : 1,
-                        Comparator.reverseOrder()
+        series.sort(Comparator
+                .comparingInt(
+                        (Series s) -> s.lessons().size()
+                ).reversed()
+                .thenComparingInt(
+                        s -> s.lessons().get(0)
+                                .isDoubleBlock() ? 0 : 1
+                )
+                .thenComparingInt(
+                        s -> s.lessons().get(0)
+                                .getStream() != null ? 0 : 1
                 ));
 
         Schedule schedule = new Schedule(
                 "Сгенерированное расписание",
-                "Расписание на весь семестр"
+                "Типовое расписание семестра"
         );
 
         searchSteps = 0;
+        searchLimitReached = false;
+
+        qualityBeforeOptimization = 0;
+        qualityAfterOptimization = 0;
+        optimizationQualityChecks = 0;
+        acceptedImprovements = 0;
+        optimizationPasses = 0;
 
         boolean success = backtrack(
-                0,
-                lessons,
-                slots,
-                rooms,
-                schedule,
-                calendar.getWeekCount()
+                series, 0, rooms, calendar, schedule
         );
 
-        return success
-                ? Optional.of(schedule)
-                : Optional.empty();
+        if (!success) {
+            return Optional.empty();
+        }
+
+        ScheduleQualityEvaluator evaluator =
+                new ScheduleQualityEvaluator(
+                        calendar.getWeekCount()
+                );
+
+        qualityBeforeOptimization =
+                evaluator.evaluate(schedule);
+
+        improveSchedule(
+                series,
+                rooms,
+                calendar,
+                schedule,
+                evaluator
+        );
+
+        qualityAfterOptimization =
+                evaluator.evaluate(schedule);
+
+        return Optional.of(schedule);
+    }
+
+    private List<Series> buildSeries(
+            List<TeachingRequirement> requirements,
+            AcademicCalendar calendar) {
+
+        List<Series> result = new ArrayList<>();
+
+        Set<TeachingRequirement> seen =
+                Collections.newSetFromMap(
+                        new IdentityHashMap<>()
+                );
+
+        for (TeachingRequirement requirement : requirements) {
+
+            Objects.requireNonNull(requirement);
+
+            if (!seen.add(requirement)) {
+                throw new IllegalArgumentException(
+                        "Repeated TeachingRequirement object: "
+                                + requirement
+                );
+            }
+
+            List<Lesson> lessons =
+                    lessonPlanner.createLessons(
+                            List.of(requirement)
+                    );
+
+            if (requirement.getStream() != null
+                    && requirement.getStream()
+                    .getGroups().isEmpty()) {
+
+                throw new IllegalArgumentException(
+                        "Lecture stream cannot be empty"
+                );
+            }
+
+            int offset = 0;
+
+            while (offset < lessons.size()) {
+
+                int remaining =
+                        lessons.size() - offset;
+
+                int bestSize = 0;
+
+                List<WeekType> bestPatterns =
+                        List.of();
+
+                for (WeekType type : WeekType.values()) {
+
+                    int count = getWeeks(
+                            type, calendar
+                    ).size();
+
+                    if (count > bestSize
+                            && count <= remaining) {
+
+                        bestSize = count;
+                        bestPatterns = List.of(type);
+
+                    } else if (count == bestSize
+                            && count > 0
+                            && count <= remaining) {
+
+                        List<WeekType> updated =
+                                new ArrayList<>(bestPatterns);
+
+                        updated.add(type);
+
+                        bestPatterns =
+                                List.copyOf(updated);
+                    }
+                }
+
+                if (bestSize <= 0) {
+
+                    result.add(new Series(
+                            List.of(lessons.get(offset)),
+                            List.of()
+                    ));
+
+                    offset++;
+
+                } else {
+
+                    result.add(new Series(
+                            List.copyOf(
+                                    lessons.subList(
+                                            offset,
+                                            offset + bestSize
+                                    )
+                            ),
+                            bestPatterns
+                    ));
+
+                    offset += bestSize;
+                }
+            }
+        }
+
+        return result;
+    }
+
+    private List<Integer> getWeeks(
+            WeekType type,
+            AcademicCalendar calendar) {
+
+        List<Integer> weeks = new ArrayList<>();
+
+        for (int week = 1;
+             week <= calendar.getWeekCount();
+             week++) {
+
+            if (TimeSlotUtils.weeksCover(
+                    type,
+                    calendar.getWeekType(week))) {
+
+                weeks.add(week);
+            }
+        }
+
+        return weeks;
     }
 
     private boolean backtrack(
+            List<Series> series,
             int index,
-            List<Lesson> lessons,
-            List<TimeSlot> slots,
             List<Classroom> rooms,
-            Schedule schedule,
-            int weekCount) {
+            AcademicCalendar calendar,
+            Schedule schedule) {
 
-        if (index == lessons.size()) {
+        if (index == series.size()) {
             return true;
         }
 
         if (++searchSteps > MAX_SEARCH_STEPS) {
+            searchLimitReached = true;
             return false;
         }
 
-        Lesson lesson = lessons.get(index);
+        List<Choice> choices = candidateChoices(
+                series.get(index),
+                rooms,
+                calendar,
+                schedule
+        );
 
-        List<ScheduleEntry> candidates =
-                createCandidates(lesson, slots, rooms, schedule);
-
-        candidates.sort(Comparator.comparingDouble(
-                entry -> calculateCandidateScore(
-                        entry,
-                        schedule,
-                        weekCount
+        choices.sort(
+                Comparator.comparingDouble(
+                        Choice::score
                 )
-        ));
+        );
 
-        for (ScheduleEntry candidate : candidates) {
+        for (Choice choice : choices) {
 
-            schedule.addEntry(candidate);
+            choice.entries().forEach(
+                    schedule::addEntry
+            );
 
             if (backtrack(
+                    series,
                     index + 1,
-                    lessons,
-                    slots,
                     rooms,
-                    schedule,
-                    weekCount)) {
+                    calendar,
+                    schedule)) {
+
                 return true;
             }
 
-            schedule.removeEntry(candidate);
+            choice.entries().forEach(
+                    schedule::removeEntry
+            );
         }
 
         return false;
     }
 
-    private List<ScheduleEntry> createCandidates(
-            Lesson lesson,
-            List<TimeSlot> slots,
+    private List<Choice> candidateChoices(
+            Series series,
             List<Classroom> rooms,
+            AcademicCalendar calendar,
             Schedule schedule) {
 
-        List<ScheduleEntry> candidates = new ArrayList<>();
+        List<Choice> choices = new ArrayList<>();
 
-        for (TimeSlot slot : slots) {
+        Lesson first = series.lessons().get(0);
 
-            if (slot.getLessonNumber()
-                    + lesson.getDuration() - 1 > 8) {
-                continue;
+        List<List<Integer>> weekVariants =
+                new ArrayList<>();
+
+        if (series.patterns().isEmpty()) {
+
+            for (int week = 1;
+                 week <= calendar.getWeekCount();
+                 week++) {
+
+                weekVariants.add(List.of(week));
             }
 
-            for (Classroom room : rooms) {
+        } else {
 
-                if (room.getType()
-                        != lesson.getRequiredClassroomType()) {
-                    continue;
-                }
+            for (WeekType type : series.patterns()) {
 
-                ScheduleEntry entry =
-                        new ScheduleEntry(lesson, slot, room);
-
-                if (validator.canAdd(entry, schedule)) {
-                    candidates.add(entry);
-                }
+                weekVariants.add(
+                        getWeeks(type, calendar)
+                );
             }
         }
 
-        return candidates;
-    }
+        for (List<Integer> weeks : weekVariants) {
 
-    private double calculateCandidateScore(
-            ScheduleEntry candidate,
-            Schedule schedule,
-            int weekCount) {
-
-        Lesson lesson = candidate.getLesson();
-        TimeSlot slot = candidate.getTimeSlot();
-
-        int sameRequirementWeek = 0;
-        int sameGroupWeekPairs = 0;
-        int sameSlotCount = 0;
-        int dayPairs = 0;
-
-        for (ScheduleEntry existing : schedule.getEntries()) {
-
-            Lesson other = existing.getLesson();
-            TimeSlot otherSlot = existing.getTimeSlot();
-
-            if (other.getRequirement()
-                    == lesson.getRequirement()) {
-
-                if (otherSlot.getWeekNumber()
-                        == slot.getWeekNumber()) {
-                    sameRequirementWeek++;
-                }
-
-                if (otherSlot.getDay() == slot.getDay()
-                        && otherSlot.getLessonNumber()
-                        == slot.getLessonNumber()) {
-                    sameSlotCount++;
-                }
+            if (weeks.size()
+                    != series.lessons().size()) {
+                continue;
             }
 
-            if (sharesGroup(lesson, other)) {
+            for (WeekDay day : WeekDay.values()) {
 
-                if (otherSlot.getWeekNumber()
-                        == slot.getWeekNumber()) {
+                for (int pair = 1;
+                     pair <= 9 - first.getDuration();
+                     pair++) {
 
-                    sameGroupWeekPairs += other.getDuration();
+                    for (Classroom room : rooms) {
 
-                    if (otherSlot.getDay() == slot.getDay()) {
-                        dayPairs += other.getDuration();
+                        if (room.getType()
+                                != first.getRequiredClassroomType()) {
+                            continue;
+                        }
+
+                        List<ScheduleEntry> entries =
+                                new ArrayList<>();
+
+                        boolean feasible = true;
+                        double score = 0;
+
+                        for (int i = 0;
+                             i < weeks.size();
+                             i++) {
+
+                            Lesson lesson =
+                                    series.lessons().get(i);
+
+                            TimeSlot slot =
+                                    BellSchedule.createSlot(
+                                            weeks.get(i),
+                                            day,
+                                            pair
+                                    );
+
+                            ScheduleEntry entry =
+                                    new ScheduleEntry(
+                                            lesson,
+                                            slot,
+                                            room
+                                    );
+
+                            if (!validator.canAdd(
+                                    entry,
+                                    schedule)) {
+
+                                feasible = false;
+                                break;
+                            }
+
+                            entries.add(entry);
+
+                            score += scorePlacement(
+                                    entry,
+                                    schedule
+                            );
+                        }
+
+                        if (feasible) {
+
+                            if (series.patterns().isEmpty()) {
+                                score += 12;
+                            }
+
+                            choices.add(new Choice(
+                                    List.copyOf(entries),
+                                    score
+                            ));
+                        }
                     }
                 }
             }
         }
 
-        double score = 0;
+        return choices;
+    }
 
-        // Равномерность одной дисциплины по неделям
-        int totalPairs = lesson.getRequirement().getTotalPairs();
+    private double scorePlacement(
+            ScheduleEntry entry,
+            Schedule schedule) {
 
-        double averageBlocks =
-                (double) totalPairs
-                        / lesson.getDuration()
-                        / weekCount;
+        Lesson lesson = entry.getLesson();
+        TimeSlot slot = entry.getTimeSlot();
 
-        score += 15.0 * Math.max(
-                0,
-                sameRequirementWeek + 1 - averageBlocks
-        );
+        int existingGroupPairs = 0;
+        int sameSubjectThisWeek = 0;
+        int existingDayPairs = 0;
+        int adjacentPairs = 0;
 
-        // Общая недельная нагрузка группы
-        score += sameGroupWeekPairs * 2.0;
+        for (ScheduleEntry other : schedule.getEntries()) {
 
-        // Предпочтение постоянного дня и времени
-        score -= Math.min(sameSlotCount, 10) * 4.0;
+            TimeSlot otherSlot = other.getTimeSlot();
 
-        // Приблизительная оценка дневной нагрузки
-        int newDayPairs = dayPairs + lesson.getDuration();
+            if (otherSlot.getWeekNumber()
+                    != slot.getWeekNumber()) {
+                continue;
+            }
 
-        if (newDayPairs > 4) {
-            score += (newDayPairs - 4) * 5.0;
+            if (other.getLesson().getRequirement()
+                    == lesson.getRequirement()) {
+
+                sameSubjectThisWeek +=
+                        other.getLesson().getDuration();
+            }
+
+            if (!sharesGroup(
+                    lesson, other.getLesson())) {
+                continue;
+            }
+
+            existingGroupPairs +=
+                    other.getLesson().getDuration();
+
+            if (otherSlot.getDay() == slot.getDay()) {
+
+                existingDayPairs +=
+                        other.getLesson().getDuration();
+
+                int end =
+                        slot.getLessonNumber()
+                                + lesson.getDuration() - 1;
+
+                int otherEnd =
+                        otherSlot.getLessonNumber()
+                                + other.getLesson()
+                                .getDuration() - 1;
+
+                if (otherEnd + 1
+                        == slot.getLessonNumber()
+                        || end + 1
+                        == otherSlot.getLessonNumber()) {
+
+                    adjacentPairs++;
+                }
+            }
         }
 
-        // Суббота допустима, но менее желательна
+        int newDayPairs =
+                existingDayPairs + lesson.getDuration();
+
+        double score =
+                existingGroupPairs * 1.5
+                        + sameSubjectThisWeek * 5.0;
+
+        score += switch (newDayPairs) {
+            case 5 -> 3;
+            case 6 -> 10;
+            case 7 -> 25;
+            case 8 -> 50;
+            default -> 0;
+        };
+
         if (slot.getDay() == WeekDay.SATURDAY) {
             score += 3;
         }
 
-        // Поздние занятия
         if (slot.getLessonNumber() >= 7) {
             score += 5;
         }
 
-        // Небольшое предпочтение более ранних пар
-        score += slot.getLessonNumber() * 0.1;
+        score -= Math.min(adjacentPairs, 2) * 2;
+
+        score += slot.getLessonNumber() * 0.05;
 
         return score;
+    }
+
+    private void improveSchedule(
+            List<Series> series,
+            List<Classroom> rooms,
+            AcademicCalendar calendar,
+            Schedule schedule,
+            ScheduleQualityEvaluator evaluator) {
+
+        double currentScore =
+                evaluator.evaluate(schedule);
+
+        for (int pass = 0;
+             pass < MAX_OPTIMIZATION_PASSES;
+             pass++) {
+
+            if (optimizationQualityChecks
+                    >= MAX_QUALITY_CHECKS) {
+                break;
+            }
+
+            optimizationPasses++;
+            boolean improved = false;
+
+            for (Series currentSeries : series) {
+
+                if (optimizationQualityChecks
+                        >= MAX_QUALITY_CHECKS) {
+                    return;
+                }
+
+                List<ScheduleEntry> originalEntries =
+                        findSeriesEntries(
+                                currentSeries,
+                                schedule
+                        );
+
+                for (ScheduleEntry entry : originalEntries) {
+                    schedule.removeEntry(entry);
+                }
+
+                List<Choice> choices = candidateChoices(
+                        currentSeries,
+                        rooms,
+                        calendar,
+                        schedule
+                );
+
+                List<ScheduleEntry> bestEntries =
+                        originalEntries;
+
+                double bestScore = currentScore;
+
+                for (Choice choice : choices) {
+
+                    if (optimizationQualityChecks
+                            >= MAX_QUALITY_CHECKS) {
+                        break;
+                    }
+
+                    for (ScheduleEntry entry
+                            : choice.entries()) {
+                        schedule.addEntry(entry);
+                    }
+
+                    double candidateScore =
+                            evaluator.evaluate(schedule);
+
+                    optimizationQualityChecks++;
+
+                    for (ScheduleEntry entry
+                            : choice.entries()) {
+                        schedule.removeEntry(entry);
+                    }
+
+                    if (candidateScore
+                            < bestScore - 0.000001) {
+
+                        bestScore = candidateScore;
+                        bestEntries = choice.entries();
+                    }
+                }
+
+                for (ScheduleEntry entry : bestEntries) {
+                    schedule.addEntry(entry);
+                }
+
+                if (bestScore < currentScore - 0.000001) {
+                    currentScore = bestScore;
+                    acceptedImprovements++;
+                    improved = true;
+                }
+            }
+
+            if (!improved) {
+                break;
+            }
+        }
+    }
+
+    private List<ScheduleEntry> findSeriesEntries(
+            Series series,
+            Schedule schedule) {
+
+        Set<Lesson> lessons =
+                Collections.newSetFromMap(
+                        new IdentityHashMap<>()
+                );
+
+        lessons.addAll(series.lessons());
+
+        List<ScheduleEntry> result =
+                new ArrayList<>();
+
+        for (ScheduleEntry entry : schedule.getEntries()) {
+
+            if (lessons.contains(entry.getLesson())) {
+                result.add(entry);
+            }
+        }
+
+        if (result.size()
+                != series.lessons().size()) {
+
+            throw new IllegalStateException(
+                    "Cannot find all lessons of the series"
+            );
+        }
+
+        return result;
     }
 
     private boolean sharesGroup(
             Lesson first,
             Lesson second) {
 
-        Set<StudentGroup> firstGroups = getGroups(first);
-        Set<StudentGroup> secondGroups = getGroups(second);
+        Set<StudentGroup> groups = new HashSet<>(
+                first.getStream() != null
+                        ? first.getStream().getGroups()
+                        : List.of(first.getGroup())
+        );
 
-        for (StudentGroup group : firstGroups) {
-            if (secondGroups.contains(group)) {
+        List<StudentGroup> otherGroups =
+                second.getStream() != null
+                        ? second.getStream().getGroups()
+                        : List.of(second.getGroup());
+
+        for (StudentGroup group : otherGroups) {
+
+            if (groups.contains(group)) {
                 return true;
             }
         }
 
         return false;
-    }
-
-    private Set<StudentGroup> getGroups(Lesson lesson) {
-
-        if (lesson.getStream() != null) {
-            return new HashSet<>(
-                    lesson.getStream().getGroups()
-            );
-        }
-
-        return Set.of(lesson.getGroup());
-    }
-
-    private void validateLessons(List<Lesson> lessons) {
-
-        for (Lesson lesson : lessons) {
-
-            if (lesson.getStream() != null
-                    && lesson.getStream().getGroups().isEmpty()) {
-
-                throw new IllegalArgumentException(
-                        "Lecture stream cannot be empty");
-            }
-        }
     }
 }
