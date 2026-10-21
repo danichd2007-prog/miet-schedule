@@ -1,0 +1,23 @@
+[
+  {
+    "subject": "Объектно-ориентированное программирование (Java)",
+    "teacher": "Воронова Н.М.",
+    "type": "LABORATORY",
+    "requiredClassroomType": "COMPUTER",
+    "isBlock": true
+  },
+  {
+    "subject": "Алгоритмы и структуры данных",
+    "teacher": "Лупин С.С.",
+    "type": "LECTURE",
+    "requiredClassroomType": "LECTURE",
+    "isBlock": false
+  },
+  {
+    "subject": "Математический анализ",
+    "teacher": "Безменов И.В.",
+    "type": "LECTURE",
+    "requiredClassroomType": "LECTURE",
+    "isBlock": false
+  }
+]

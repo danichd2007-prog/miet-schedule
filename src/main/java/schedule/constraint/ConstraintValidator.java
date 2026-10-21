@@ -25,7 +25,6 @@ public class ConstraintValidator {
                 new StudentGroupConflictConstraint(),
                 new ClassroomTypeConstraint(),
                 new LessonDurationConstraint(),
-                new SameSubjectDayConstraint(),
                 new TeacherAvailabilityConstraint(
                         availabilities,
                         calendar)
