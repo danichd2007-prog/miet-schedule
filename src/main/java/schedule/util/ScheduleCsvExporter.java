@@ -1,4 +1,4 @@
-package schedule.util;
+    package schedule.util;
 
 import schedule.calendar.AcademicCalendar;
 import schedule.model.*;
@@ -11,7 +11,18 @@ import java.util.*;
 
 public class ScheduleCsvExporter {
 
-    private static final String SEPARATOR = ";";
+    private record SeriesKey(
+            StudentGroup group,
+            TeachingRequirement requirement,
+            WeekDay day,
+            int firstPair,
+            int duration) {
+    }
+
+    private record SeriesData(
+            Set<Integer> weeks,
+            Set<String> rooms) {
+    }
 
     public static void export(
             Schedule schedule,
@@ -21,13 +32,27 @@ public class ScheduleCsvExporter {
 
         Files.createDirectories(directory);
 
+        Map<SeriesKey, SeriesData> series =
+                buildSeries(schedule);
+
         for (StudentGroup group : groups) {
+
             exportDetailed(
                     schedule,
                     calendar,
-                    List.of(group),
+                    Set.of(group),
+                    series,
                     directory.resolve(
                             group.getName() + "_detailed.csv"
+                    )
+            );
+
+            exportSeries(
+                    series,
+                    calendar,
+                    Set.of(group),
+                    directory.resolve(
+                            group.getName() + "_series.csv"
                     )
             );
 
@@ -44,39 +69,236 @@ public class ScheduleCsvExporter {
         exportDetailed(
                 schedule,
                 calendar,
-                groups,
+                new HashSet<>(groups),
+                series,
                 directory.resolve("ALL_detailed.csv")
+        );
+
+        exportSeries(
+                series,
+                calendar,
+                new HashSet<>(groups),
+                directory.resolve("ALL_series.csv")
         );
     }
 
-    private static void exportDetailed(
-            Schedule schedule,
+    private static Map<SeriesKey, SeriesData> buildSeries(
+            Schedule schedule) {
+
+        Map<SeriesKey, SeriesData> result =
+                new LinkedHashMap<>();
+
+        for (ScheduleEntry entry : schedule.getEntries()) {
+
+            Lesson lesson = entry.getLesson();
+            TimeSlot slot = entry.getTimeSlot();
+
+            for (StudentGroup group : getGroups(lesson)) {
+
+                SeriesKey key = new SeriesKey(
+                        group,
+                        lesson.getRequirement(),
+                        slot.getDay(),
+                        slot.getLessonNumber(),
+                        lesson.getDuration()
+                );
+
+                SeriesData data = result.computeIfAbsent(
+                        key,
+                        ignored -> new SeriesData(
+                                new TreeSet<>(),
+                                new TreeSet<>()
+                        )
+                );
+
+                data.weeks().add(
+                        slot.getWeekNumber()
+                );
+
+                data.rooms().add(
+                        entry.getClassroom().getBuilding()
+                                + "-"
+                                + entry.getClassroom().getNumber()
+                );
+            }
+        }
+
+        return result;
+    }
+
+    private static String pattern(
+            Set<Integer> weeks,
+            AcademicCalendar calendar) {
+
+        for (WeekType type : List.of(
+                WeekType.EVERY_WEEK,
+                WeekType.NUMERATOR,
+                WeekType.DENOMINATOR,
+                WeekType.F_NUMERATOR,
+                WeekType.F_DENOMINATOR,
+                WeekType.S_NUMERATOR,
+                WeekType.S_DENOMINATOR)) {
+
+            Set<Integer> expected = new HashSet<>();
+
+            for (int week = 1;
+                 week <= calendar.getWeekCount();
+                 week++) {
+
+                int phase = (week - 1) % 4;
+
+                boolean applies = switch (type) {
+
+                    case EVERY_WEEK -> true;
+
+                    case NUMERATOR ->
+                            phase == 0 || phase == 2;
+
+                    case DENOMINATOR ->
+                            phase == 1 || phase == 3;
+
+                    case F_NUMERATOR ->
+                            phase == 0;
+
+                    case F_DENOMINATOR ->
+                            phase == 1;
+
+                    case S_NUMERATOR ->
+                            phase == 2;
+
+                    case S_DENOMINATOR ->
+                            phase == 3;
+                };
+
+                if (applies) {
+                    expected.add(week);
+                }
+            }
+
+            if (weeks.equals(expected)) {
+                return type.getRussianName();
+            }
+        }
+
+        return "Нестандартно (" + weeks + ")";
+    }
+
+    private static List<SeriesKey> sortedKeys(
+            Map<SeriesKey, SeriesData> series,
+            Set<StudentGroup> groups) {
+
+        return series.keySet().stream()
+                .filter(key -> groups.contains(key.group()))
+                .sorted(
+                        Comparator
+                                .comparing(
+                                        (SeriesKey key) ->
+                                                key.group().getName()
+                                )
+                                .thenComparingInt(
+                                        key -> key.day().ordinal()
+                                )
+                                .thenComparingInt(
+                                        SeriesKey::firstPair
+                                )
+                                .thenComparing(
+                                        key -> key.requirement()
+                                                .getTeacherSubject()
+                                                .getSubject()
+                                                .getName()
+                                )
+                )
+                .toList();
+    }
+
+    private static void exportSeries(
+            Map<SeriesKey, SeriesData> series,
             AcademicCalendar calendar,
-            Collection<StudentGroup> groups,
+            Set<StudentGroup> groups,
             Path file) throws IOException {
 
         List<String> lines = new ArrayList<>();
 
         lines.add(
-                "Группа;Неделя;Тип недели;Дата;"
-                        + "День;Пара;Дисциплина;Тип занятия;"
-                        + "Преподаватель;Аудитория"
+                "Группа;День;Пара;Периодичность;Дисциплина;"
+                        + "Тип занятия;Преподаватель;Аудитория;Недели"
+        );
+
+        for (SeriesKey key : sortedKeys(series, groups)) {
+
+            SeriesData data = series.get(key);
+
+            LessonType type =
+                    key.requirement().getLessonType();
+
+            lines.add(
+                    row(
+                            key.group().getName(),
+                            key.day().toString(),
+                            pair(
+                                    key.firstPair(),
+                                    key.duration()
+                            ),
+                            pattern(
+                                    data.weeks(),
+                                    calendar
+                            ),
+                            key.requirement()
+                                    .getTeacherSubject()
+                                    .getSubject()
+                                    .getName(),
+                            type.toString(),
+                            key.requirement()
+                                    .getTeacherSubject()
+                                    .getTeacher()
+                                    .getShortName(),
+                            String.join(
+                                    " | ",
+                                    data.rooms()
+                            ),
+                            data.weeks().toString()
+                    )
+            );
+        }
+
+        write(file, lines);
+    }
+
+    private static void exportDetailed(
+            Schedule schedule,
+            AcademicCalendar calendar,
+            Set<StudentGroup> groups,
+            Map<SeriesKey, SeriesData> series,
+            Path file) throws IOException {
+
+        List<String> lines = new ArrayList<>();
+
+        lines.add(
+                "Группа;Неделя;Тип недели;Дата;День;Пара;"
+                        + "Периодичность занятия;Дисциплина;"
+                        + "Тип занятия;Преподаватель;Аудитория"
         );
 
         List<ScheduleEntry> entries =
                 new ArrayList<>(schedule.getEntries());
 
-        entries.sort(Comparator
-                .comparingInt(
-                        (ScheduleEntry e) ->
-                                e.getTimeSlot().getWeekNumber()
-                )
-                .thenComparingInt(
-                        e -> e.getTimeSlot().getDay().ordinal()
-                )
-                .thenComparingInt(
-                        e -> e.getTimeSlot().getLessonNumber()
-                ));
+        entries.sort(
+                Comparator
+                        .comparingInt(
+                                (ScheduleEntry e) ->
+                                        e.getTimeSlot()
+                                                .getWeekNumber()
+                        )
+                        .thenComparingInt(
+                                e -> e.getTimeSlot()
+                                        .getDay()
+                                        .ordinal()
+                        )
+                        .thenComparingInt(
+                                e -> e.getTimeSlot()
+                                        .getLessonNumber()
+                        )
+        );
 
         for (ScheduleEntry entry : entries) {
 
@@ -89,30 +311,53 @@ public class ScheduleCsvExporter {
                     continue;
                 }
 
-                String pair = lesson.getDuration() == 2
-                        ? slot.getLessonNumber() + "-"
-                        + (slot.getLessonNumber() + 1)
-                        : String.valueOf(slot.getLessonNumber());
+                SeriesKey key = new SeriesKey(
+                        group,
+                        lesson.getRequirement(),
+                        slot.getDay(),
+                        slot.getLessonNumber(),
+                        lesson.getDuration()
+                );
 
-                lines.add(String.join(SEPARATOR,
-                        csv(group.getName()),
-                        String.valueOf(slot.getWeekNumber()),
-                        csv(calendar.getWeekType(
-                                slot.getWeekNumber()).toString()),
-                        csv(calendar.getDate(
-                                slot.getWeekNumber(),
-                                slot.getDay()).toString()),
-                        csv(slot.getDay().toString()),
-                        csv(pair),
-                        csv(lesson.getSubject().getName()),
-                        csv(lesson.getLessonType().toString()),
-                        csv(lesson.getTeacher().getShortName()),
-                        csv(entry.getClassroom().getNumber())
-                ));
+                lines.add(
+                        row(
+                                group.getName(),
+                                String.valueOf(
+                                        slot.getWeekNumber()
+                                ),
+                                calendar.getWeekType(
+                                        slot.getWeekNumber()
+                                ).getRussianName(),
+                                calendar.getDate(
+                                        slot.getWeekNumber(),
+                                        slot.getDay()
+                                ).toString(),
+                                slot.getDay().toString(),
+                                pair(
+                                        slot.getLessonNumber(),
+                                        lesson.getDuration()
+                                ),
+                                pattern(
+                                        series.get(key).weeks(),
+                                        calendar
+                                ),
+                                lesson.getSubject()
+                                        .getName(),
+                                lesson.getLessonType()
+                                        .toString(),
+                                lesson.getTeacher()
+                                        .getShortName(),
+                                entry.getClassroom()
+                                        .getBuilding()
+                                        + "-"
+                                        + entry.getClassroom()
+                                        .getNumber()
+                        )
+                );
             }
         }
 
-        writeCsv(file, lines);
+        write(file, lines);
     }
 
     private static void exportGrid(
@@ -134,58 +379,52 @@ public class ScheduleCsvExporter {
 
             for (int pair = 1; pair <= 8; pair++) {
 
-                List<String> cells = new ArrayList<>();
-
-                cells.add(day.toString());
-                cells.add(String.valueOf(pair));
+                List<String> cells =
+                        new ArrayList<>(
+                                List.of(
+                                        day.toString(),
+                                        String.valueOf(pair)
+                                )
+                        );
 
                 for (int phase = 0; phase < 4; phase++) {
 
-                    Map<String, Set<Integer>> lessons =
+                    Map<String, Set<Integer>> descriptions =
                             new LinkedHashMap<>();
 
-                    for (ScheduleEntry entry
-                            : schedule.getEntries()) {
+                    for (ScheduleEntry entry :
+                            schedule.getEntries()) {
 
                         Lesson lesson = entry.getLesson();
                         TimeSlot slot = entry.getTimeSlot();
 
-                        if (!getGroups(lesson).contains(group)) {
+                        if (!getGroups(lesson).contains(group)
+                                || slot.getDay() != day
+                                || (slot.getWeekNumber() - 1) % 4
+                                != phase
+                                || pair < slot.getLessonNumber()
+                                || pair >= slot.getLessonNumber()
+                                + lesson.getDuration()) {
+
                             continue;
                         }
 
-                        if (slot.getDay() != day) {
-                            continue;
-                        }
-
-                        int start = slot.getLessonNumber();
-                        int end = start + lesson.getDuration() - 1;
-
-                        if (pair < start || pair > end) {
-                            continue;
-                        }
-
-                        if ((slot.getWeekNumber() - 1) % 4
-                                != phase) {
-                            continue;
-                        }
-
-                        String description =
+                        String value =
                                 lesson.getSubject().getName()
-                                        + " (" + lesson.getLessonType()
+                                        + " ("
+                                        + lesson.getLessonType()
                                         + "), "
-                                        + lesson.getTeacher().getShortName()
+                                        + lesson.getTeacher()
+                                        .getShortName()
                                         + ", ауд. "
-                                        + entry.getClassroom().getNumber();
+                                        + entry.getClassroom()
+                                        .getNumber();
 
-                        lessons.computeIfAbsent(
-                                description,
-                                k -> new TreeSet<>()
+                        descriptions.computeIfAbsent(
+                                value,
+                                ignored -> new TreeSet<>()
                         ).add(slot.getWeekNumber());
                     }
-
-                    List<String> descriptions =
-                            new ArrayList<>();
 
                     int totalPhaseWeeks = 0;
 
@@ -198,7 +437,10 @@ public class ScheduleCsvExporter {
                         }
                     }
 
-                    for (var item : lessons.entrySet()) {
+                    List<String> values =
+                            new ArrayList<>();
+
+                    for (var item : descriptions.entrySet()) {
 
                         String value = item.getKey();
 
@@ -206,57 +448,69 @@ public class ScheduleCsvExporter {
                                 != totalPhaseWeeks) {
 
                             value += " [недели: "
-                                    + item.getValue() + "]";
+                                    + item.getValue()
+                                    + "]";
                         }
 
-                        descriptions.add(value);
+                        values.add(value);
                     }
 
                     cells.add(
-                            String.join(" | ", descriptions)
+                            String.join(" | ", values)
                     );
                 }
 
-                List<String> escaped = new ArrayList<>();
-
-                for (String cell : cells) {
-                    escaped.add(csv(cell));
-                }
-
-                lines.add(String.join(SEPARATOR, escaped));
+                lines.add(
+                        row(
+                                cells.toArray(String[]::new)
+                        )
+                );
             }
         }
 
-        writeCsv(file, lines);
+        write(file, lines);
+    }
+
+    private static String pair(
+            int start,
+            int duration) {
+
+        return duration == 2
+                ? start + "-" + (start + 1)
+                : String.valueOf(start);
     }
 
     private static List<StudentGroup> getGroups(
             Lesson lesson) {
 
-        return lesson.getStream() != null
-                ? lesson.getStream().getGroups()
-                : List.of(lesson.getGroup());
+        return lesson.getStream() == null
+                ? List.of(lesson.getGroup())
+                : lesson.getStream().getGroups();
     }
 
-    private static String csv(String value) {
+    private static String row(String... cells) {
 
-        if (value == null) {
-            return "";
+        List<String> escaped = new ArrayList<>();
+
+        for (String cell : cells) {
+
+            escaped.add(
+                    "\"" + cell.replace("\"", "\"\"") + "\""
+            );
         }
 
-        return "\"" + value.replace("\"", "\"\"") + "\"";
+        return String.join(";", escaped);
     }
 
-    private static void writeCsv(
+    private static void write(
             Path file,
             List<String> lines) throws IOException {
 
-        String content =
-                "\uFEFF" + String.join("\r\n", lines) + "\r\n";
-
         Files.writeString(
                 file,
-                content,
+                "\uFEFF"
+                        + String.join("\r\n", lines)
+                        + "\r\n",
                 StandardCharsets.UTF_8
         );
     }
