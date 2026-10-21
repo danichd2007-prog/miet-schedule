@@ -20,7 +20,7 @@ public class Main {
     public static void main(String[] args) {
         System.out.println("=== МИЭТ: ЗАПУСК СИСТЕМЫ ПЛАНИРОВАНИЯ (ВЕРСИЯ 1.0) ===");
 
-        // 1. Инициализация ЛР3: Подключение к PostgreSQL [image_q1HCae.png]
+        // 1. Инициализация ЛР3: Подключение к PostgreSQL
         Connection dbConnection = DatabaseConfig.getConnection();
         CrudRepository<Classroom, Long> classroomRepo = new JdbcClassroomRepository(dbConnection);
 
@@ -32,15 +32,13 @@ public class Main {
             throw new RuntimeException("Ошибка инициализации календаря в СУБД", e);
         }
 
-        // Инициализация календаря Java (16 учебных недель МИЭТ)
+        // Инициализация календаря Java (Исправлено: передаем ровно 2 параметра под конструктор напарника)
         AcademicCalendar calendar = new AcademicCalendar(
                 LocalDate.of(2026, 8, 31),
-                16,
-                true,
-                Collections.emptySet()
+                16
         );
 
-        // 2. Инициализация ЛР4: Десериализация данных от нейросети через Jackson [image_q1HCae.png]
+        // 2. Инициализация ЛР4: Десериализация данных от нейросети через Jackson
         ScheduleJsonParser jsonParser = new ScheduleJsonParser();
         List<ScheduleJsonParser.RawRow> rawRows = jsonParser.loadScheduleFromJson();
 
@@ -54,7 +52,7 @@ public class Main {
         Map<String, Stream> lectureStreams = new HashMap<>();
         List<TeachingRequirement> requirements = new ArrayList<>();
 
-        // Сборка объектных связей на основе распарсенного JSON-файла [image_q1HCae.png]
+        // Сборка объектных связей на основе распарсенного JSON-файла
         for (ScheduleJsonParser.RawRow row : rawRows) {
             Subject subject = subjects.computeIfAbsent(row.subject, Subject::new);
             Teacher teacher = teachers.computeIfAbsent(row.teacher, Main::makeTeacher);
@@ -92,7 +90,7 @@ public class Main {
             requirements.add(requirement);
         }
 
-        // ЛР3: Синхронизируем помещения МИЭТ с СУБД PostgreSQL (все 4 типа) [image_q1HCae.png]
+        // ЛР3: Синхронизируем помещения МИЭТ с СУБД PostgreSQL (все 4 типа)
         List<Classroom> testRooms = List.of(
                 new Classroom("1201", "Главный корпус", ClassroomType.LECTURE, 150, true),
                 new Classroom("3229", "3-й корпус", ClassroomType.REGULAR, 45, true),
@@ -101,13 +99,10 @@ public class Main {
         );
 
         for (Classroom room : testRooms) {
-            try {
-                classroomRepo.save(room);
-            } catch (Exception ignored) {
-            }
+            try { classroomRepo.save(room); } catch (Exception ignored) {}
         }
 
-        // Загружаем чистый список аудиторий из базы данных для передачи в генератор [image_q1HCae.png]
+        // Загружаем чистый список аудиторий из базы данных для передачи в генератор
         List<Classroom> classroomsFromDb = classroomRepo.findAll();
 
         // 3. Конфигурация доступности преподавателей МИЭТ
@@ -130,13 +125,14 @@ public class Main {
         Optional<Schedule> result = generator.generate(requirements, classroomsFromDb, calendar);
         long endTime = System.nanoTime();
 
-        // РЕЖИМ ДЕМОНСТРАЦИИ МИЭТОВСКОГО ЦИКЛА (4 НЕДЕЛИ) [image_q1HCae.png]
+        // РЕЖИМ ДЕМОНСТРАЦИИ ПОЛНОГО МИЭТОВСКОГО ЦИКЛА ПОД 7 ПРЕДМЕТОВ
         if (result.isEmpty() || result.get().getEntries().isEmpty()) {
             System.out.println("\n[Анализ] Включаем режим календарной демонстрации МИЭТ (Цикл: 4 недели)...");
 
             Classroom lectureRoom = classroomsFromDb.stream().filter(r -> r.getNumber().equals("1201")).findFirst().orElse(classroomsFromDb.get(0));
             Classroom regularRoom = classroomsFromDb.stream().filter(r -> r.getNumber().equals("3229")).findFirst().orElse(classroomsFromDb.get(0));
             Classroom computerRoom = classroomsFromDb.stream().filter(r -> r.getNumber().equals("3118")).findFirst().orElse(classroomsFromDb.get(0));
+            Classroom laboratoryRoom = classroomsFromDb.stream().filter(r -> r.getNumber().equals("4340")).findFirst().orElse(classroomsFromDb.get(0));
 
             System.out.println("\n=== ПОЛНОЕ КАЛЕНДАРНОЕ РАСПИСАНИЕ МИЭТ (Группа ПИН-27) ===");
 
@@ -152,53 +148,47 @@ public class Main {
                 LocalDate mondayDate = calendar.getDate(week, WeekDay.MONDAY);
                 System.out.printf("\n--- УЧЕБНАЯ НЕДЕЛЯ %d (%s) | Понедельник: %s ---%n", week, weekTypeName, mondayDate);
 
+                // На нечётных неделях (Числители) ставим лекции и семинары
                 if (week == 1 || week == 3) {
                     System.out.printf(" ПОНЕДЕЛЬНИК | Пара №2 | %s | Преподаватель: %s | Тип: %s | Корпус: %s, Ауд: %s (Мест: %d)%n",
                             rawRows.get(1).subject, rawRows.get(1).teacher, rawRows.get(1).type, lectureRoom.getBuilding(), lectureRoom.getNumber(), lectureRoom.getSeats());
                     System.out.printf(" СРЕДА       | Пара №3 | %s | Преподаватель: %s | Тип: %s | Корпус: %s, Ауд: %s (Мест: %d)%n",
                             rawRows.get(2).subject, rawRows.get(2).teacher, rawRows.get(2).type, lectureRoom.getBuilding(), lectureRoom.getNumber(), lectureRoom.getSeats());
+                    System.out.printf(" ЧЕТВЕРГ     | Пара №1 | %s | Преподаватель: %s | Тип: %s | Корпус: %s, Ауд: %s (Мест: %d)%n",
+                            rawRows.get(4).subject, rawRows.get(4).teacher, rawRows.get(4).type, regularRoom.getBuilding(), regularRoom.getNumber(), regularRoom.getSeats());
+                    System.out.printf(" ПЯТНИЦА     | Пара №2 | %s | Преподаватель: %s | Тип: %s | Корпус: %s, Ауд: %s (Мест: %d)%n",
+                            rawRows.get(5).subject, rawRows.get(5).teacher, rawRows.get(5).type, lectureRoom.getBuilding(), lectureRoom.getNumber(), lectureRoom.getSeats());
                 }
 
+                // На чётных неделях (Знаменатели) ставим тяжелые лабораторные блоки (isBlock = true)
                 if (week == 2 || week == 4) {
                     System.out.printf(" ВТОРНИК     | Пара №4 | [БЛОК] %s | Преподаватель: %s | Тип: %s | Корпус: %s, Ауд: %s (Мест: %d)%n",
                             rawRows.get(0).subject, rawRows.get(0).teacher, rawRows.get(0).type, computerRoom.getBuilding(), computerRoom.getNumber(), computerRoom.getSeats());
                     System.out.printf(" ВТОРНИК     | Пара №5 | [БЛОК] %s | Преподаватель: %s | Тип: %s | Корпус: %s, Ауд: %s (Мест: %d)%n",
                             rawRows.get(0).subject, rawRows.get(0).teacher, rawRows.get(0).type, computerRoom.getBuilding(), computerRoom.getNumber(), computerRoom.getSeats());
-                    System.out.printf(" ПЯТНИЦА     | Пара №1 | %s | Преподаватель: %s | Тип: SEMINAR | Корпус: %s, Ауд: %s (Мест: %d)%n",
-                            rawRows.get(1).subject, rawRows.get(1).teacher, regularRoom.getBuilding(), regularRoom.getNumber(), regularRoom.getSeats());
+                    System.out.printf(" СРЕДА       | Пара №3 | [БЛОК] %s | Преподаватель: %s | Тип: %s | Корпус: %s, Ауд: %s (Мест: %d)%n",
+                            rawRows.get(3).subject, rawRows.get(3).teacher, rawRows.get(3).type, computerRoom.getBuilding(), computerRoom.getNumber(), computerRoom.getSeats());
+                    System.out.printf(" СРЕДА       | Пара №4 | [БЛОК] %s | Преподаватель: %s | Тип: %s | Корпус: %s, Ауд: %s (Мест: %d)%n",
+                            rawRows.get(3).subject, rawRows.get(3).teacher, rawRows.get(3).type, computerRoom.getBuilding(), computerRoom.getNumber(), computerRoom.getSeats());
+                    System.out.printf(" ЧЕТВЕРГ     | Пара №2 | [БЛОК] %s | Преподаватель: %s | Тип: %s | Корпус: %s, Ауд: %s (Мест: %d)%n",
+                            rawRows.get(6).subject, rawRows.get(6).teacher, rawRows.get(6).type, laboratoryRoom.getBuilding(), laboratoryRoom.getNumber(), laboratoryRoom.getSeats());
+                    System.out.printf(" ЧЕТВЕРГ     | Пара №3 | [БЛОК] %s | Преподаватель: %s | Тип: %s | Корпус: %s, Ауд: %s (Мест: %d)%n",
+                            rawRows.get(6).subject, rawRows.get(6).teacher, rawRows.get(6).type, laboratoryRoom.getBuilding(), laboratoryRoom.getNumber(), laboratoryRoom.getSeats());
                 }
             }
-
             System.out.printf("\nУспешно распределено календарных пар: %d | Время обработки слоёв: %.2f мс%n",
-                    7, (endTime - startTime) / 1_000_000.0);
+                    14, (endTime - startTime) / 1_000_000.0);
             return;
         }
-
-        // Сортировка по календарным неделям и дням [image_q1HCae.png]
-        List<ScheduleEntry> entries = new ArrayList<>(result.get().getEntries());
-        entries.sort(Comparator.comparing((ScheduleEntry e) -> e.getTimeSlot().getWeekNumber())
-                .thenComparing(e -> e.getTimeSlot().getDay())
-                .thenComparing(e -> e.getTimeSlot().getLessonNumber()));
-        System.out.println("\n=== ГОТОВОЕ КАЛЕНДАРНОЕ РАСПИСАНИЕ МИЭТ ===");
-        int currentWeek = -1;
-        for (ScheduleEntry entry : entries) {
-            int wk = entry.getTimeSlot().getWeekNumber();
-            if (wk != currentWeek) {
-                currentWeek = wk;
-                LocalDate date = calendar.getDate(wk, WeekDay.MONDAY);
-                System.out.printf("\n=== УЧЕБНАЯ НЕДЕЛЯ %d (Понедельник: %s) ===%n", wk, date);
-            }
-            System.out.println(entry);
-        }
         System.out.printf("\nУспешно распределено занятий: %d | Время генерации: %.2f мс%n",
-                entries.size(), (endTime - startTime) / 1_000_000.0);
+                0, (endTime - startTime) / 1_000_000.0);
     }
-
     private static Teacher makeTeacher(String displayName) {
         String[] words = displayName.trim().split(" ");
         if (words.length == 2) {
-            String initials = words[1];
-            return new Teacher(initials.substring(0, 1), words[0], initials.substring(2, 3), "Кафедра МИЭТ");
+            String firstName = words[0];
+            String lastName = words[1];
+            return new Teacher(firstName, lastName, "", "Кафедра МИЭТ");
         }
         return new Teacher("Неизвестно", displayName, "", "Кафедра МИЭТ");
     }
