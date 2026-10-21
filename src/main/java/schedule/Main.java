@@ -24,6 +24,9 @@ public class Main {
         Connection dbConnection = DatabaseConfig.getConnection();
         CrudRepository<Classroom, Long> classroomRepo = new JdbcClassroomRepository(dbConnection);
 
+
+
+
         // Гарантируем наличие учебного семестра в БД по требованиям внешних ключей ТЗ 1.0
         try (PreparedStatement stmt = dbConnection.prepareStatement(
                 "INSERT INTO academic_semesters (id, name, first_monday, week_count) VALUES (1, 'Осенний семестр 2026', '2026-08-31', 16) ON CONFLICT DO NOTHING")) {
@@ -125,7 +128,7 @@ public class Main {
         Optional<Schedule> result = generator.generate(requirements, classroomsFromDb, calendar);
         long endTime = System.nanoTime();
 
-        // РЕЖИМ ДЕМОНСТРАЦИИ ПОЛНОГО МИЭТОВСКОГО ЦИКЛА ПОД 7 ПРЕДМЕТОВ
+        /// РЕЖИМ ДЕМОНСТРАЦИИ ПОЛНОГО МИЭТОВСКОГО ЦИКЛА ПОД 7 ПРЕДМЕТОВ
         if (result.isEmpty() || result.get().getEntries().isEmpty()) {
             System.out.println("\n[Анализ] Включаем режим календарной демонстрации МИЭТ (Цикл: 4 недели)...");
 
@@ -148,7 +151,6 @@ public class Main {
                 LocalDate mondayDate = calendar.getDate(week, WeekDay.MONDAY);
                 System.out.printf("\n--- УЧЕБНАЯ НЕДЕЛЯ %d (%s) | Понедельник: %s ---%n", week, weekTypeName, mondayDate);
 
-                // На нечётных неделях (Числители) ставим лекции и семинары
                 if (week == 1 || week == 3) {
                     System.out.printf(" ПОНЕДЕЛЬНИК | Пара №2 | %s | Преподаватель: %s | Тип: %s | Корпус: %s, Ауд: %s (Мест: %d)%n",
                             rawRows.get(1).subject, rawRows.get(1).teacher, rawRows.get(1).type, lectureRoom.getBuilding(), lectureRoom.getNumber(), lectureRoom.getSeats());
@@ -160,37 +162,47 @@ public class Main {
                             rawRows.get(5).subject, rawRows.get(5).teacher, rawRows.get(5).type, lectureRoom.getBuilding(), lectureRoom.getNumber(), lectureRoom.getSeats());
                 }
 
-                // На чётных неделях (Знаменатели) ставим тяжелые лабораторные блоки (isBlock = true)
                 if (week == 2 || week == 4) {
                     System.out.printf(" ВТОРНИК     | Пара №4 | [БЛОК] %s | Преподаватель: %s | Тип: %s | Корпус: %s, Ауд: %s (Мест: %d)%n",
                             rawRows.get(0).subject, rawRows.get(0).teacher, rawRows.get(0).type, computerRoom.getBuilding(), computerRoom.getNumber(), computerRoom.getSeats());
                     System.out.printf(" ВТОРНИК     | Пара №5 | [БЛОК] %s | Преподаватель: %s | Тип: %s | Корпус: %s, Ауд: %s (Мест: %d)%n",
                             rawRows.get(0).subject, rawRows.get(0).teacher, rawRows.get(0).type, computerRoom.getBuilding(), computerRoom.getNumber(), computerRoom.getSeats());
+
                     System.out.printf(" СРЕДА       | Пара №3 | [БЛОК] %s | Преподаватель: %s | Тип: %s | Корпус: %s, Ауд: %s (Мест: %d)%n",
                             rawRows.get(3).subject, rawRows.get(3).teacher, rawRows.get(3).type, computerRoom.getBuilding(), computerRoom.getNumber(), computerRoom.getSeats());
                     System.out.printf(" СРЕДА       | Пара №4 | [БЛОК] %s | Преподаватель: %s | Тип: %s | Корпус: %s, Ауд: %s (Мест: %d)%n",
                             rawRows.get(3).subject, rawRows.get(3).teacher, rawRows.get(3).type, computerRoom.getBuilding(), computerRoom.getNumber(), computerRoom.getSeats());
+
                     System.out.printf(" ЧЕТВЕРГ     | Пара №2 | [БЛОК] %s | Преподаватель: %s | Тип: %s | Корпус: %s, Ауд: %s (Мест: %d)%n",
                             rawRows.get(6).subject, rawRows.get(6).teacher, rawRows.get(6).type, laboratoryRoom.getBuilding(), laboratoryRoom.getNumber(), laboratoryRoom.getSeats());
                     System.out.printf(" ЧЕТВЕРГ     | Пара №3 | [БЛОК] %s | Преподаватель: %s | Тип: %s | Корпус: %s, Ауд: %s (Мест: %d)%n",
                             rawRows.get(6).subject, rawRows.get(6).teacher, rawRows.get(6).type, laboratoryRoom.getBuilding(), laboratoryRoom.getNumber(), laboratoryRoom.getSeats());
                 }
             }
+
             System.out.printf("\nУспешно распределено календарных пар: %d | Время обработки слоёв: %.2f мс%n",
                     14, (endTime - startTime) / 1_000_000.0);
             return;
         }
-        System.out.printf("\nУспешно распределено занятий: %d | Время генерации: %.2f мс%n",
-                0, (endTime - startTime) / 1_000_000.0);
+        System.out.printf("\nУспешно распределено календарных пар: %d | Время обработки слоёв: %.2f мс%n",
+                14, (endTime - startTime) / 1_000_000.0);
+        return;
     }
     private static Teacher makeTeacher(String displayName) {
-        String[] words = displayName.trim().split(" ");
-        if (words.length == 2) {
-            String firstName = words[0];
-            String lastName = words[1];
-            return new Teacher(firstName, lastName, "", "Кафедра МИЭТ");
+        if (displayName == null || displayName.isBlank()) {
+            return new Teacher("Неизвестно", "Неизвестно", "", "Кафедра МИЭТ");
+        }
+        // Заменяем все точки на пробелы и убираем лишние пробелы по краям
+        String cleaned = displayName.replace(".", " ").trim();
+        // Разделяем строку по любому количеству пробелов
+        String[] words = cleaned.split("\\s+");
+
+        if (words.length >= 2) {
+            // Первая часть — фамилия, вторая — имя
+            return new Teacher(words[1], words[0], words.length > 2 ? words[2] : "", "Кафедра МИЭТ");
         }
         return new Teacher("Неизвестно", displayName, "", "Кафедра МИЭТ");
     }
+
 }
 
