@@ -23,6 +23,7 @@ public class ConstraintValidator {
                 new TeacherConflictConstraint(),
                 new ClassroomConflictConstraint(),
                 new StudentGroupConflictConstraint(),
+                new SameSubjectDayConstraint(),
                 new ClassroomTypeConstraint(),
                 new LessonDurationConstraint(),
                 new TeacherAvailabilityConstraint(

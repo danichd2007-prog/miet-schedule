@@ -6,7 +6,7 @@ import schedule.model.*;
 import java.util.*;
 
 public class ScheduleQualityEvaluator {
-
+    //fd
     private final int weekCount;
 
     public ScheduleQualityEvaluator(int weekCount) {
