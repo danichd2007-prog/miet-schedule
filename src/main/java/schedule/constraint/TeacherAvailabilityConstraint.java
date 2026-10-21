@@ -1,5 +1,7 @@
+
 package schedule.constraint;
 
+import schedule.calendar.AcademicCalendar;
 import schedule.model.Schedule;
 import schedule.model.ScheduleEntry;
 import schedule.model.Teacher;
@@ -8,58 +10,73 @@ import schedule.model.TimeSlot;
 import schedule.model.WeekType;
 import schedule.util.TimeSlotUtils;
 
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
-import java.util.Set;
 
 public class TeacherAvailabilityConstraint implements ScheduleConstraint {
 
     private final List<TeacherAvailability> availabilities;
+    private final AcademicCalendar calendar;
 
     public TeacherAvailabilityConstraint(
-            List<TeacherAvailability> availabilities) {
+            List<TeacherAvailability> availabilities,
+            AcademicCalendar calendar) {
 
-        Objects.requireNonNull(
-                availabilities, "Availabilities cannot be null");
+        this.availabilities = List.copyOf(
+                Objects.requireNonNull(availabilities));
 
-        this.availabilities = new ArrayList<>(availabilities);
+        this.calendar = Objects.requireNonNull(calendar);
     }
 
     @Override
-    public boolean isSatisfied(ScheduleEntry entry, Schedule schedule) {
+    public boolean isSatisfied(
+            ScheduleEntry entry,
+            Schedule schedule) {
 
         Teacher teacher = entry.getLesson().getTeacher();
         TimeSlot slot = entry.getTimeSlot();
 
-        Set<WeekType> requiredWeeks =
-                TimeSlotUtils.getCoveredWeeks(slot.getWeekType());
+        WeekType requiredWeek =
+                calendar.getWeekType(slot.getWeekNumber());
 
-        Set<WeekType> coveredWeeks =
-                java.util.EnumSet.noneOf(WeekType.class);
+        int firstPair = slot.getLessonNumber();
+        int lastPair =
+                firstPair + entry.getLesson().getDuration() - 1;
 
-        for (TeacherAvailability availability : availabilities) {
+        for (int pair = firstPair; pair <= lastPair; pair++) {
 
-            if (!availability.getTeacher().equals(teacher)) {
-                continue;
+            boolean available = false;
+
+            for (TeacherAvailability availability : availabilities) {
+
+                if (!availability.getTeacher().equals(teacher)) {
+                    continue;
+                }
+
+                if (availability.getDay() != slot.getDay()) {
+                    continue;
+                }
+
+                if (pair < availability.getFromLesson()
+                        || pair > availability.getToLesson()) {
+                    continue;
+                }
+
+                if (!TimeSlotUtils.weeksCover(
+                        availability.getWeekType(),
+                        requiredWeek)) {
+                    continue;
+                }
+
+                available = true;
+                break;
             }
 
-            if (availability.getDay() != slot.getDay()) {
-                continue;
+            if (!available) {
+                return false;
             }
-
-            if (slot.getLessonNumber() < availability.getFromLesson()
-                    || slot.getLessonNumber() > availability.getToLesson()) {
-                continue;
-            }
-
-            coveredWeeks.addAll(
-                    TimeSlotUtils.getCoveredWeeks(
-                            availability.getWeekType()
-                    )
-            );
         }
 
-        return coveredWeeks.containsAll(requiredWeeks);
+        return true;
     }
 }

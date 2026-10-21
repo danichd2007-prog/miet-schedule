@@ -2,7 +2,6 @@ package schedule.util;
 
 import schedule.model.TimeSlot;
 import schedule.model.WeekDay;
-import schedule.model.WeekType;
 
 import java.time.LocalTime;
 import java.util.List;
@@ -53,33 +52,34 @@ public final class BellSchedule {
         return result;
     }
 
-
     public static TimeSlot createSlot(
+            int weekNumber,
             WeekDay day,
-            int lessonNumber,
-            WeekType weekType) {
+            int lessonNumber) {
 
         BellTime time = getTime(lessonNumber);
 
         return new TimeSlot(
+                weekNumber,
                 day,
                 lessonNumber,
-                weekType,
                 time.start(),
                 time.end()
         );
     }
 
-
     public static List<TimeSlot> createDaySlots(
-            WeekDay day,
-            WeekType weekType) {
+            int weekNumber,
+            WeekDay day) {
 
         return TIMES.keySet().stream()
                 .sorted()
                 .map(number -> createSlot(
-                        day, number, weekType
+                        weekNumber,
+                        day,
+                        number
                 ))
                 .toList();
     }
+
 }

@@ -7,20 +7,15 @@ import schedule.util.TimeSlotUtils;
 public class TeacherConflictConstraint implements ScheduleConstraint {
 
     @Override
-    public boolean isSatisfied(ScheduleEntry entry, Schedule schedule) {
+    public boolean isSatisfied(
+            ScheduleEntry entry,
+            Schedule schedule) {
 
-        for (ScheduleEntry existingEntry : schedule.getEntries()) {
+        for (ScheduleEntry existing : schedule.getEntries()) {
 
-            boolean sameTeacher =
-                    existingEntry.getLesson().getTeacher()
-                            .equals(entry.getLesson().getTeacher());
-
-            boolean sameTime = TimeSlotUtils.overlaps(
-                    existingEntry.getTimeSlot(),
-                    entry.getTimeSlot()
-            );
-
-            if (sameTeacher && sameTime) {
+            if (existing.getLesson().getTeacher()
+                    .equals(entry.getLesson().getTeacher())
+                    && TimeSlotUtils.overlaps(existing, entry)) {
                 return false;
             }
         }

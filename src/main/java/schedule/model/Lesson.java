@@ -3,6 +3,7 @@ package schedule.model;
 import java.util.Objects;
 
 public class Lesson {
+
     private Long id;
     private final TeachingRequirement requirement;
     private final int duration;
@@ -11,9 +12,14 @@ public class Lesson {
         this.requirement = Objects.requireNonNull(
                 requirement, "Requirement cannot be null");
 
-        if (duration <= 0) {
+        if (duration != 1 && duration != 2) {
             throw new IllegalArgumentException(
-                    "Duration must be positive");
+                    "Duration must be 1 or 2 pairs");
+        }
+
+        if (duration != (requirement.isBlock() ? 2 : 1)) {
+            throw new IllegalArgumentException(
+                    "Duration does not match TeachingRequirement");
         }
 
         this.duration = duration;
@@ -45,6 +51,10 @@ public class Lesson {
         return duration;
     }
 
+    public boolean isDoubleBlock() {
+        return duration == 2;
+    }
+
     public Subject getSubject() {
         return requirement.getTeacherSubject().getSubject();
     }
@@ -70,10 +80,6 @@ public class Lesson {
         return requirement.getLessonType();
     }
 
-    public WeekType getWeekType() {
-        return requirement.getWeekType();
-    }
-
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
@@ -95,8 +101,10 @@ public class Lesson {
                 ? "поток " + getStream().getName()
                 : "группа " + getGroup().getName();
 
-        return getSubject().getName() + " | " +
-                getTeacher().getShortName() + " | " +
-                target + " | " + getLessonType();
+        return getSubject().getName()
+                + " | " + getTeacher().getShortName()
+                + " | " + target
+                + " | " + getLessonType()
+                + " | " + duration + " пар";
     }
 }
