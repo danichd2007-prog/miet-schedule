@@ -1,8 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <project xmlns="http://apache.org"
          xmlns:xsi="http://w3.org"
-         xsi:schemaLocation="http://apache.org
-         https://apache.org">
+         xsi:schemaLocation="http://apache.org https://apache.org">
 
     <modelVersion>4.0.0</modelVersion>
 
@@ -16,14 +15,11 @@
     </properties>
 
     <dependencies>
-        <!-- Официальный драйвер для подключения Java к СУБД PostgreSQL (для ЛР3) -->
         <dependency>
             <groupId>org.postgresql</groupId>
             <artifactId>postgresql</artifactId>
             <version>42.7.2</version>
         </dependency>
-
-        <!-- Библиотека Jackson для профессиональной работы с JSON-файлами (для ЛР4) -->
         <dependency>
             <groupId>com.fasterxml.jackson.core</groupId>
             <artifactId>jackson-databind</artifactId>
@@ -44,7 +40,6 @@
 
     <build>
         <plugins>
-            <!-- Исправленный плагин компилятора -->
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-compiler-plugin</artifactId>
@@ -52,5 +47,4 @@
             </plugin>
         </plugins>
     </build>
-
 </project>
