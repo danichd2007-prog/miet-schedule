@@ -6,19 +6,15 @@ import schedule.model.WeekType;
 import java.time.DayOfWeek;
 import java.time.LocalDate;
 import java.util.Objects;
-import java.util.Set;
 
 public class AcademicCalendar {
 
     private final LocalDate firstMonday;
     private final int weekCount;
-    private final boolean firstWeekIsNumerator;
 
     public AcademicCalendar(
             LocalDate firstMonday,
-            int weekCount,
-            boolean firstWeekIsNumerator,
-            Set<LocalDate> nonTeachingDates) {
+            int weekCount) {
 
         this.firstMonday = Objects.requireNonNull(
                 firstMonday, "First Monday cannot be null");
@@ -34,7 +30,6 @@ public class AcademicCalendar {
         }
 
         this.weekCount = weekCount;
-        this.firstWeekIsNumerator = firstWeekIsNumerator;
     }
 
     public LocalDate getDate(int weekNumber, WeekDay day) {
@@ -44,13 +39,6 @@ public class AcademicCalendar {
         return firstMonday
                 .plusWeeks(weekNumber - 1L)
                 .plusDays(day.ordinal());
-    }
-
-    public boolean isNumerator(int weekNumber) {
-        validateWeek(weekNumber);
-
-        return ((weekNumber - 1) % 2 == 0)
-                == firstWeekIsNumerator;
     }
 
     public int getWeekCount() {
