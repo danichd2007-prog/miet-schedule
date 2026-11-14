@@ -126,6 +126,45 @@ CREATE TABLE IF NOT EXISTS teaching_requirements (
 CREATE INDEX IF NOT EXISTS idx_req_semester  ON teaching_requirements (semester_id);
 CREATE INDEX IF NOT EXISTS idx_avail_teacher ON teacher_availability (teacher_id);
 
+-- ---------- Категория преподавателя ----------
+-- PART_TIME (совместитель) ставится в расписание первым, его доступность жёсткая.
+-- STAFF (штатный) идёт вторым. Столбец добавляется отдельно, чтобы схема
+-- применялась и к уже созданной базе.
+
+ALTER TABLE teachers
+    ADD COLUMN IF NOT EXISTS category VARCHAR(20) NOT NULL DEFAULT 'STAFF'
+        CHECK (category IN ('PART_TIME', 'STAFF'));
+
+-- ---------- Результаты работы алгоритма ----------
+-- Один запуск = одна версия расписания семестра. Старые версии не затираются,
+-- их можно сравнивать и возвращаться к ним.
+
+CREATE TABLE IF NOT EXISTS schedule_runs (
+    id          BIGSERIAL PRIMARY KEY,
+    semester_id BIGINT       NOT NULL REFERENCES academic_semesters (id),
+    created_at  TIMESTAMPTZ  NOT NULL DEFAULT now(),
+    placed      INT          NOT NULL,            -- размещённых занятий
+    unplaced    INT          NOT NULL,            -- серий, которые не удалось разместить
+    elapsed_ms  BIGINT       NOT NULL,
+    note        VARCHAR(200) NOT NULL DEFAULT ''
+);
+
+CREATE TABLE IF NOT EXISTS schedule_lessons (
+    id             BIGSERIAL PRIMARY KEY,
+    run_id         BIGINT      NOT NULL REFERENCES schedule_runs (id) ON DELETE CASCADE,
+    requirement_id BIGINT      NOT NULL REFERENCES teaching_requirements (id),
+    week           INT         NOT NULL CHECK (week >= 1),
+    day_of_week    VARCHAR(10) NOT NULL
+        CHECK (day_of_week IN ('MONDAY','TUESDAY','WEDNESDAY','THURSDAY','FRIDAY','SATURDAY')),
+    start_pair     INT         NOT NULL CHECK (start_pair BETWEEN 1 AND 8),
+    duration       INT         NOT NULL CHECK (duration IN (1, 2)),
+    classroom_id   BIGINT      NOT NULL REFERENCES classrooms (id),
+    CHECK (start_pair + duration - 1 <= 8)
+);
+
+CREATE INDEX IF NOT EXISTS idx_lessons_run      ON schedule_lessons (run_id, week, day_of_week);
+CREATE INDEX IF NOT EXISTS idx_lessons_classroom ON schedule_lessons (classroom_id);
+
 -- =====================================================================
 -- Тестовые данные (совпадают с ai_schedule.json и Main)
 -- =====================================================================
@@ -276,3 +315,18 @@ JOIN teacher_subjects ts ON ts.teacher_id = t.id AND ts.subject_id = s.id
 JOIN classroom_types ct  ON ct.code = v.room_type
 JOIN student_groups g    ON g.name = 'ПИН-27'
 WHERE NOT EXISTS (SELECT 1 FROM teaching_requirements WHERE group_id IS NOT NULL);
+
+-- ---------- Демонстрационный совместитель ----------
+-- Гужов работает только по вторникам и четвергам (пары 1-6, каждую неделю).
+-- Алгоритм обязан поставить его занятия именно в эти дни.
+
+UPDATE teachers SET category = 'PART_TIME' WHERE last_name = 'Гужов';
+
+DELETE FROM teacher_availability
+WHERE teacher_id IN (SELECT id FROM teachers WHERE last_name = 'Гужов');
+
+INSERT INTO teacher_availability (teacher_id, day_of_week, start_pair, end_pair, week_type)
+SELECT t.id, d.day, 1, 6, 'EVERY_WEEK'
+FROM teachers t
+CROSS JOIN (VALUES ('TUESDAY'), ('THURSDAY')) AS d(day)
+WHERE t.last_name = 'Гужов';

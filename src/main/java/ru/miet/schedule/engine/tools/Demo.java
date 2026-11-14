@@ -1,5 +1,6 @@
 package ru.miet.schedule.engine.tools;
 
+import ru.miet.schedule.domain.AcademicCalendar;
 import ru.miet.schedule.domain.StudentGroup;
 import ru.miet.schedule.domain.WeekDay;
 import ru.miet.schedule.engine.model.Problem;
@@ -87,12 +88,12 @@ public final class Demo {
         printWeek(group, lessons, 2, "вторая неделя (знаменатель)");
 
         Path csv = Path.of("demo-schedule.csv");
-        writeCsv(csv, lessons, data);
+        writeCsv(csv, lessons, data.calendar());
         System.out.println("Всё расписание сохранено: " + csv.toAbsolutePath()
                 + " (" + lessons.size() + " занятий)");
     }
 
-    private static StudentGroup pickGroup(List<StudentGroup> groups, String name) {
+    static StudentGroup pickGroup(List<StudentGroup> groups, String name) {
         if (name != null) {
             for (StudentGroup group : groups) {
                 if (group.getName().equals(name)) {
@@ -107,7 +108,7 @@ public final class Demo {
         return groups.get(0);
     }
 
-    private static void printWeek(
+    static void printWeek(
             StudentGroup group, List<ScheduledLesson> lessons, int week, String title) {
 
         Map<String, String> cells = new HashMap<>();
@@ -169,8 +170,8 @@ public final class Demo {
         return String.format("%-" + CELL_WIDTH + "s", cut);
     }
 
-    private static void writeCsv(
-            Path path, List<ScheduledLesson> lessons, SyntheticUniversity.Data data)
+    static void writeCsv(
+            Path path, List<ScheduledLesson> lessons, AcademicCalendar calendar)
             throws IOException {
 
         List<ScheduledLesson> sorted = new ArrayList<>(lessons);
@@ -192,7 +193,7 @@ public final class Demo {
                     : lesson.pair() + "-" + lesson.lastPair();
 
             out.append(lesson.week()).append(';')
-                    .append(lesson.date(data.calendar())).append(';')
+                    .append(lesson.date(calendar)).append(';')
                     .append(lesson.day().getRussianName()).append(';')
                     .append(pairs).append(';')
                     .append(csv(groups)).append(';')
