@@ -140,6 +140,18 @@ class OccupancyTest {
     }
 
     @Test
+    void dayMaskShowsOccupiedPairsPerPhaseAndDay() {
+        Occupancy occupancy = new Occupancy(2);
+        occupancy.occupy(1, 0b0010, 3, 2, 2); // фаза 1, четверг, пары 2-3
+        occupancy.occupy(1, 0b0010, 3, 8, 1); // и 8 пара
+
+        assertEquals(0b1000_0110, occupancy.dayMask(1, 1, 3));
+        assertEquals(0, occupancy.dayMask(1, 0, 3)); // другая фаза
+        assertEquals(0, occupancy.dayMask(1, 1, 2)); // другой день
+        assertEquals(0, occupancy.dayMask(0, 1, 3)); // другой ресурс
+    }
+
+    @Test
     void slotEncodingRoundTrips() {
         for (int phase = 0; phase < TimeGrid.PHASES; phase++) {
             for (int day = 0; day < TimeGrid.DAYS; day++) {

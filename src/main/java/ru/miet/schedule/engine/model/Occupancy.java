@@ -142,6 +142,27 @@ public final class Occupancy {
         return (bits[resource * WORDS + (slot >> 6)] & (1L << (slot & 63))) != 0;
     }
 
+    /**
+     * Занятость ресурса в один день одной фазы цикла: бит k = пара k+1 занята.
+     * Нужна, чтобы дёшево считать окна и нагрузку дня.
+     */
+    public int dayMask(int resource, int phase, int day) {
+        checkResource(resource);
+
+        if (phase < 0 || phase >= TimeGrid.PHASES) {
+            throw new IllegalArgumentException("Phase must be 0.." + (TimeGrid.PHASES - 1));
+        }
+
+        if (day < 0 || day >= TimeGrid.DAYS) {
+            throw new IllegalArgumentException("Day must be 0.." + (TimeGrid.DAYS - 1));
+        }
+
+        int base = (phase * TimeGrid.DAYS + day) * TimeGrid.PAIRS;
+        long word = bits[resource * WORDS + (base >> 6)];
+
+        return (int) ((word >>> (base & 63)) & 0xFF);
+    }
+
     /** Сколько слотов занято у ресурса. */
     public int busySlots(int resource) {
         checkResource(resource);
