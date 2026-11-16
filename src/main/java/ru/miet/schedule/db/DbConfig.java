@@ -52,7 +52,17 @@ public record DbConfig(String url, String user, String password) {
 
     /** Новое соединение. Автофиксация выключена: транзакцией управляет вызывающий код. */
     public Connection connect() throws SQLException {
-        Connection connection = DriverManager.getConnection(url, user, password);
+        try {
+            Class.forName("org.postgresql.Driver");
+        } catch (ClassNotFoundException e) {
+            throw new SQLException(
+                    "Не удалось загрузить JDBC-драйвер PostgreSQL", e
+            );
+        }
+
+        Connection connection =
+                DriverManager.getConnection(url, user, password);
+
         connection.setAutoCommit(false);
         return connection;
     }

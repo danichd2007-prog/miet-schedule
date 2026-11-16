@@ -135,7 +135,8 @@ public final class ScheduleController {
                 return Response.html(200, HtmlViews.run(view, notice(query)));
             }
 
-            return timetable(view, parts[2], id(parts[3], "Объект"), week(query, view), notice(query));
+            return timetable(view, parts[2], id(parts[3], "Объект"),
+                    "summary".equals(query.get("view")) ? 0 : week(query, view), notice(query));
         }
 
         throw new NotFound("Такой страницы нет");
@@ -176,6 +177,10 @@ public final class ScheduleController {
             default -> throw new NotFound("Такой страницы нет");
         }
 
+        if (week == 0) {
+            return Response.html(200, HtmlViews.summaryTimetable(
+                    view.info().id(), kind, entityId, title, data.calendar(), mine));
+        }
         return Response.html(200, HtmlViews.timetable(
                 view.info().id(), kind, entityId, title, week, data.calendar(), mine, notice));
     }

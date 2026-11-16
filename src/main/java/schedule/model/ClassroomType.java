@@ -4,7 +4,8 @@ public enum ClassroomType {
     LECTURE("Лекционная"),
     LABORATORY("Лабораторная"),
     COMPUTER("Компьютерный класс"),
-    REGULAR("Обычная");
+    REGULAR("Обычная"),
+    SPORT("Спортивный зал");
 
     private final String russianName;
 

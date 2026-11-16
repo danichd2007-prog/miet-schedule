@@ -72,7 +72,43 @@ final class Board {
             }
         }
 
+        // Одна дисциплина одного типа — не чаще одного занятия в день
+        // для каждой группы и каждой пересекающейся фазы календаря.
+        // Двухпарный блок — одна Series с duration=2, а не две Series.
+        if (sameLessonAlreadyOnDay(s, mask, day)) {
+            return false;
+        }
+
         return true;
+    }
+
+    private boolean sameLessonAlreadyOnDay(int seriesIndex, int phaseMask, int day) {
+        var target = problem.series(seriesIndex).requirement();
+        int[] targetGroups = problem.groupsOf(seriesIndex);
+
+        for (int otherIndex = 0; otherIndex < placed.length; otherIndex++) {
+            Placement otherPlacement = placed[otherIndex];
+            if (otherIndex == seriesIndex || otherPlacement == null
+                    || otherPlacement.day() != day
+                    || (phaseMask & mask(otherIndex, otherPlacement.alternative())) == 0) {
+                continue;
+            }
+
+            var other = problem.series(otherIndex).requirement();
+            if (!target.subject().getName().equals(other.subject().getName())
+                    || target.getLessonType() != other.getLessonType()) {
+                continue;
+            }
+
+            for (int g : targetGroups) {
+                for (int otherGroup : problem.groupsOf(otherIndex)) {
+                    if (g == otherGroup) {
+                        return true;
+                    }
+                }
+            }
+        }
+        return false;
     }
 
     /** Свободны ли преподаватель и все группы серии. */

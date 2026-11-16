@@ -59,6 +59,11 @@ final class HtmlViews {
             th,td{border:1px solid var(--line);padding:6px 8px;text-align:left;vertical-align:top}
             th{background:var(--bg);font-weight:600}
             .grid td{height:64px;font-size:13px}.grid th.pair{width:42px;text-align:center}
+            .summary-table td.summary-cell{padding:0;min-width:190px;height:96px}
+            .summary-grid{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);grid-template-rows:minmax(48px,auto) minmax(48px,auto);min-height:96px}
+            .summary-tile{min-width:0;padding:5px 7px;border:1px solid var(--line);font-size:12px;overflow-wrap:anywhere}
+            .summary-label{display:block;font-size:10px;margin-bottom:3px}
+            .summary-tile .edit{font-size:11px}
             .lec{background:var(--lec)}.sem{background:var(--sem)}.lab{background:var(--lab)}.other{background:var(--other)}
             .tag{font-size:11px;border:1px solid var(--line);border-radius:4px;padding:0 4px;margin-left:4px}
             .tabs a{display:inline-block;padding:2px 9px;margin:2px;border:1px solid var(--line);border-radius:6px}
@@ -436,6 +441,9 @@ final class HtmlViews {
                 .append(", ").append(esc(calendar.getWeekType(week).getRussianName().toLowerCase()))
                 .append("</div>");
 
+        b.append("<p><a href=\"/run/").append(runId).append('/').append(kind.path)
+                .append('/').append(entityId).append("?view=summary\">Общее расписание за семестр →</a></p>");
+
         b.append("<div class=\"tabs\" style=\"margin:8px 0\">");
         for (int w = 1; w <= calendar.getWeekCount(); w++) {
             b.append("<a href=\"/run/").append(runId).append('/').append(kind.path).append('/')
@@ -494,6 +502,162 @@ final class HtmlViews {
         b.append("</table></div>");
 
         return layout(title, b.toString());
+    }
+
+    /**
+     * Общая сетка: 1Ч | 2Ч сверху, 1З | 2З снизу.
+     * Объединение разрешено только для занятий, присутствующих во ВСЕХ
+     * неделях соответствующих фаз; нерегулярные недели не маскируются.
+     */
+    static String summaryTimetable(long runId, Kind kind, long entityId,
+                                   String title, AcademicCalendar calendar,
+                                   List<ScheduledLesson> lessons) {
+        StringBuilder b = new StringBuilder();
+        b.append("<a href=\"/run/").append(runId).append("\">← Расписание № ")
+                .append(runId).append("</a><h1>").append(esc(title)).append("</h1>");
+        b.append("<p class=\"muted\">Общая сетка: вся ячейка — каждую неделю; "
+                + "верх — числитель, низ — знаменатель; "
+                + "четверти — 1Ч, 2Ч, 1З, 2З. "
+                + "Нерегулярные занятия показываются с номерами недель.</p>");
+        b.append("<p><a href=\"/run/").append(runId).append('/')
+                .append(kind.path).append('/').append(entityId)
+                .append("?week=1\">По отдельным неделям →</a></p>");
+        b.append("<div class=\"card scroll\"><table class=\"grid summary-table\">"
+                + "<tr><th class=\"pair\">Пара</th>");
+        for (WeekDay day : WeekDay.values()) {
+            b.append("<th>").append(esc(day.getRussianName())).append("</th>");
+        }
+        b.append("</tr>");
+
+        for (int pair = 1; pair <= 8; pair++) {
+            b.append("<tr><th class=\"pair\">").append(pair).append("</th>");
+            for (WeekDay day : WeekDay.values()) {
+                final int currentPair = pair;
+                List<ScheduledLesson> at = lessons.stream()
+                        .filter(l -> l.day() == day && l.pair() <= currentPair
+                                && l.lastPair() >= currentPair)
+                        .toList();
+                b.append("<td class=\"summary-cell\">");
+                if (!at.isEmpty()) {
+                    b.append("<div class=\"summary-grid\">");
+                    // Разные требования / аудитории / границы блоков не смешиваются.
+                    Map<String, List<ScheduledLesson>> grouped = new java.util.LinkedHashMap<>();
+                    for (ScheduledLesson lesson : at) {
+                        String key = lesson.requirement().getId() + ":"
+                                + lesson.room().getId() + ":"
+                                + lesson.pair() + ":" + lesson.duration();
+                        grouped.computeIfAbsent(key, k -> new ArrayList<>()).add(lesson);
+                    }
+                    for (List<ScheduledLesson> occurrences : grouped.values()) {
+                        appendSummaryOccurrence(b, kind, runId, calendar, occurrences);
+                    }
+                    b.append("</div>");
+                }
+                b.append("</td>");
+            }
+            b.append("</tr>");
+        }
+        b.append("</table></div>");
+        return layout(title, b.toString());
+    }
+
+    private static void appendSummaryOccurrence(StringBuilder b, Kind kind, long runId,
+                                                AcademicCalendar calendar,
+                                                List<ScheduledLesson> occurrences) {
+        ScheduledLesson first = occurrences.get(0);
+        Set<Integer> actual = new java.util.TreeSet<>();
+        for (ScheduledLesson lesson : occurrences) actual.add(lesson.week());
+
+        // Битовые позиции: 1Ч=1, 2Ч=2, 1З=4, 2З=8.
+        int[] bits = {1, 4, 2, 8}; // Индекс — реальная фаза календаря: 0,1,2,3.
+        int mask = 0;
+        boolean regular = true;
+        for (int phase = 0; phase < 4; phase++) {
+            boolean some = false;
+            boolean all = true;
+            for (int week = 1; week <= calendar.getWeekCount(); week++) {
+                if (calendar.phaseOf(week) != phase) continue;
+                if (actual.contains(week)) some = true;
+                else all = false;
+            }
+            if (some) {
+                mask |= bits[phase];
+                if (!all) regular = false;
+            }
+        }
+
+        // Если нет полной повторяемости по фазам, не показываем занятие
+        // как будто оно проводится весь числитель / весь семестр.
+        if (!regular) {
+            for (int phase = 0; phase < 4; phase++) {
+                List<Integer> weeks = new ArrayList<>();
+                for (int week : actual) {
+                    if (calendar.phaseOf(week) == phase) weeks.add(week);
+                }
+                if (!weeks.isEmpty()) {
+                    appendSummaryTile(b, kind, runId, first, bits[phase],
+                            "Недели: " + joinWeeks(weeks));
+                }
+            }
+            return;
+        }
+
+        // Одна область для регулярного сочетания фаз. Допускаем полное
+        // объединение, половины, четверти. Другие сочетания выводим по четвертям.
+        if (mask == 15 || mask == 3 || mask == 12
+                || mask == 1 || mask == 2 || mask == 4 || mask == 8) {
+            appendSummaryTile(b, kind, runId, first, mask, phaseLabel(mask));
+        } else {
+            for (int bit : new int[]{1, 2, 4, 8}) {
+                if ((mask & bit) != 0) {
+                    appendSummaryTile(b, kind, runId, first, bit, phaseLabel(bit));
+                }
+            }
+        }
+    }
+
+    private static String joinWeeks(List<Integer> weeks) {
+        return weeks.stream().map(String::valueOf)
+                .collect(Collectors.joining(", "));
+    }
+
+    private static String phaseLabel(int mask) {
+        return switch (mask) {
+            case 15 -> "Каждую неделю";
+            case 3 -> "Числитель";
+            case 12 -> "Знаменатель";
+            case 1 -> "1Ч";
+            case 2 -> "2Ч";
+            case 4 -> "1З";
+            case 8 -> "2З";
+            default -> "";
+        };
+    }
+
+    private static void appendSummaryTile(StringBuilder b, Kind kind, long runId,
+                                          ScheduledLesson lesson, int mask, String label) {
+        String position = switch (mask) {
+            case 15 -> "grid-column:1/3;grid-row:1/3;";
+            case 3 -> "grid-column:1/3;grid-row:1/2;";
+            case 12 -> "grid-column:1/3;grid-row:2/3;";
+            case 1 -> "grid-column:1/2;grid-row:1/2;";
+            case 2 -> "grid-column:2/3;grid-row:1/2;";
+            case 4 -> "grid-column:1/2;grid-row:2/3;";
+            case 8 -> "grid-column:2/3;grid-row:2/3;";
+            default -> "";
+        };
+        b.append("<div class=\"summary-tile ")
+                .append(css(lesson.requirement().getLessonType()))
+                .append("\" style=\"").append(position).append("\">");
+        b.append("<span class=\"muted summary-label\">")
+                .append(esc(label)).append("</span>");
+        b.append("<div>").append(cell(kind, runId, lesson)).append("</div>");
+        if (lesson.duration() > 1) {
+            b.append("<span class=\"muted summary-label\">Блок: ")
+                    .append(lesson.pair()).append("–").append(lesson.lastPair())
+                    .append(" пары</span>");
+        }
+        b.append("</div>");
     }
 
     private static String cell(Kind kind, long runId, ScheduledLesson lesson) {
